@@ -1,7 +1,6 @@
----
-title: "A Metadata-Driven Framework for Strengthening Pathogen Genomics: Lessons from SARS-Cov-2"
-output: github_document
----
+A Metadata-Driven Framework for Strengthening Pathogen Genomics: Lessons
+from SARS-Cov-2
+================
 
 <style>
 body {
@@ -9,17 +8,19 @@ text-align: left;
 }
 </style>
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.align = 'center')
-```
-
 ## Section 1: Literature Search and Filtering
 
-A literature search was performed using LitCovid for PMC articles published after January 2023. 
-Open-access articles were screened with regular expressions to identify (1) sequence repositories (GenBank, SRA, GISAID), (2) accession number patterns, and (3) references to specific SARS-CoV-2 variants (BA.2,  BA.2.86, JN.1, KP.2, KP.3, KP.3.1.1, LB.1, XEC, JN.1.7, and JN.1.18). 
-Two reviewers independently assessed articles for inclusion criteria: reporting original SARS-CoV-2 genome sequences, depositing data to GenBank or GISAID, and providing sequence-specific metadata. 
+A literature search was performed using LitCovid for PMC articles
+published after January 2023. Open-access articles were screened with
+regular expressions to identify (1) sequence repositories (GenBank, SRA,
+GISAID), (2) accession number patterns, and (3) references to specific
+SARS-CoV-2 variants (BA.2, BA.2.86, JN.1, KP.2, KP.3, KP.3.1.1, LB.1,
+XEC, JN.1.7, and JN.1.18). Two reviewers independently assessed articles
+for inclusion criteria: reporting original SARS-CoV-2 genome sequences,
+depositing data to GenBank or GISAID, and providing sequence-specific
+metadata.
 
-```{r suppfig1, fig.cap="Number of article records retained at each stage of the filtering process.",echo=TRUE}
+``` r
 library(tidyverse)
 library(ggbreak)
 library(egg)
@@ -58,11 +59,24 @@ ggplot(paper_counts_df, aes(x = step, y = value, fill = year)) +
   theme(axis.text.x = element_text(angle = 30, hjust = 1))
 ```
 
+<div class="figure" style="text-align: center">
+
+<img src="readme_files/figure-gfm/suppfig1-1.png" alt="Number of article records retained at each stage of the filtering process."  />
+<p class="caption">
+Number of article records retained at each stage of the filtering
+process.
+</p>
+
+</div>
 
 ## Section 2: Metadata Completeness
 
-We performed manual extraction of sequence-specific metadata and evaluated the ceiling of metadata completeness by benchmarking our extracted data against existing GenBank records and the max metadata type that was able to be recovered.
-```{r fig1, fig.cap="Heatmap of sequence-specific patient metadata collected. Dark blocks represent metadata in GenBank, light blocks represent metadata extracted from publication text, and white blocks represent missing metadata. Local refers to state or city versus county level location. CT refers to RT-PCR cycle threshold with CT_precision indicating either exact value or if a range was reported. Symptom_status refers to either asymptomatic or symptomatic cases and Symptoms lists the reported symptoms. Vaccination_Status refers to whether a patient was vaccinated and Vaccine_dose specifies the number of doses received prior to sequencing. Comorbidity_Status refers to the presence or absence of comorbidities and Comorbidity lists the specific conditions reported.",fig.dim=c(8, 6),echo=TRUE}
+We performed manual extraction of sequence-specific metadata and
+evaluated the ceiling of metadata completeness by benchmarking our
+extracted data against existing GenBank records and the max metadata
+type that was able to be recovered.
+
+``` r
 # Load external libraries at the top
 library(pheatmap)
 library(dplyr)
@@ -77,10 +91,18 @@ total_metadata_matrix <- collected_metadata_matrix + genbank_metadata_matrix
 # Print completeness percentages with explicit calculations
 genbank_completeness <- round(sum(genbank_metadata_matrix == 1) / 528 * 100, 1)
 cat(paste("Completeness from GenBank only:", genbank_completeness, "%\n"))
+```
 
+    ## Completeness from GenBank only: 21.6 %
+
+``` r
 papers_completeness <- round(sum(collected_metadata_matrix == 1) / 528 * 100, 1)
 cat(paste("Completeness from papers only:", papers_completeness, "%\n"))
+```
 
+    ## Completeness from papers only: 52.8 %
+
+``` r
 # Heatmap plot: arguments are explicit, object names are in snake_case
 pheatmap(
   total_metadata_matrix,
@@ -90,7 +112,28 @@ pheatmap(
   cluster_rows = FALSE,
   cluster_cols = FALSE
 )
+```
 
+<div class="figure" style="text-align: center">
+
+<img src="readme_files/figure-gfm/fig1-1.png" alt="Heatmap of sequence-specific patient metadata collected. Dark blocks represent metadata in GenBank, light blocks represent metadata extracted from publication text, and white blocks represent missing metadata. Local refers to state or city versus county level location. CT refers to RT-PCR cycle threshold with CT_precision indicating either exact value or if a range was reported. Symptom_status refers to either asymptomatic or symptomatic cases and Symptoms lists the reported symptoms. Vaccination_Status refers to whether a patient was vaccinated and Vaccine_dose specifies the number of doses received prior to sequencing. Comorbidity_Status refers to the presence or absence of comorbidities and Comorbidity lists the specific conditions reported."  />
+<p class="caption">
+Heatmap of sequence-specific patient metadata collected. Dark blocks
+represent metadata in GenBank, light blocks represent metadata extracted
+from publication text, and white blocks represent missing metadata.
+Local refers to state or city versus county level location. CT refers to
+RT-PCR cycle threshold with CT_precision indicating either exact value
+or if a range was reported. Symptom_status refers to either asymptomatic
+or symptomatic cases and Symptoms lists the reported symptoms.
+Vaccination_Status refers to whether a patient was vaccinated and
+Vaccine_dose specifies the number of doses received prior to sequencing.
+Comorbidity_Status refers to the presence or absence of comorbidities
+and Comorbidity lists the specific conditions reported.
+</p>
+
+</div>
+
+``` r
 # Calculate completeness for each column in percentage
 completeness_percent <- colMeans(total_metadata_matrix > 0) * 100
 
@@ -111,23 +154,33 @@ completeness_df <- data.frame(
 
 # Wilcoxon test for group completeness comparisons; always explicit argument names
 wilcox.test(completeness ~ year, data = completeness_df, exact = FALSE)
-
 ```
+
+    ## 
+    ##  Wilcoxon rank sum test with continuity correction
+    ## 
+    ## data:  completeness by year
+    ## W = 24, p-value = 0.02949
+    ## alternative hypothesis: true location shift is not equal to 0
 
 ## Section 3: Core Data Preparation and Merging
 
-A significant effort was made to clean, normalize, and consolidate data from all sources. This involved:
+A significant effort was made to clean, normalize, and consolidate data
+from all sources. This involved:
 
-1. Loading metadata files for each study.
-2. Standardizing column names and categorical variable values (e.g., 'sex', 'hospitalization').
-3. Creating new features like 'AgeGroup' and 'treatment_type'.
-4. Merging the cleaned metadata with genomic data from Nextclade.
-5. Filtering out low-quality sequences and non-Omicron clades.
-6. Joining the data with the document cluster assignments from Section 3.
+1.  Loading metadata files for each study.
+2.  Standardizing column names and categorical variable values (e.g.,
+    ‘sex’, ‘hospitalization’).
+3.  Creating new features like ‘AgeGroup’ and ‘treatment_type’.
+4.  Merging the cleaned metadata with genomic data from Nextclade.
+5.  Filtering out low-quality sequences and non-Omicron clades.
+6.  Joining the data with the document cluster assignments from Section
+    3.
 
-The cleaned dataset (`Supplementary_Data.csv`) is used for all subsequent analyses.
+The cleaned dataset (`Supplementary_Data.csv`) is used for all
+subsequent analyses.
 
-```{r make_core_data, echo=TRUE, eval=FALSE}
+``` r
 library(dplyr)
 library(lubridate)
 
@@ -298,14 +351,18 @@ final_df <- full_join(nextclade_df, metadata_df, by = "genbank") %>%
 
 #write.csv(final_df, "cleaned_data_core.csv", row.names = FALSE)
 #Reanamed as "Supplementary_Data.csv" for publication
-
 ```
 
 ## Section 4: Intra-host Viral Evolution
 
-We investigated the rate of viral evolution within individual hosts. Using a time-dated phylogenetic tree (`treedater`), we estimated the substitution rate for each patient with longitudinal samples. The plot below shows these intra-host rates, highlighting differences between immune status and viral clade. A linear model was used to formally test the association between substitution rate, immune status, and clade.
+We investigated the rate of viral evolution within individual hosts.
+Using a time-dated phylogenetic tree (`treedater`), we estimated the
+substitution rate for each patient with longitudinal samples. The plot
+below shows these intra-host rates, highlighting differences between
+immune status and viral clade. A linear model was used to formally test
+the association between substitution rate, immune status, and clade.
 
-```{r genbank_limit, fig.cap="Distribution of SARS-CoV-2 lineages by country used in case 2. Illustrates analytical limit of Genbank data."}
+``` r
 selected_studies <- c(
   "Manuto_2024", 
   "Gonzalez_Reiche_2023", 
@@ -334,7 +391,18 @@ supplementary_data_df %>%
       legend.box.background = element_rect(fill = "transparent", color = NA)
     )
 ```
-```{r evolution_speed, fig.cap="Dot plot of substitution rate per patient."}
+
+<div class="figure" style="text-align: center">
+
+<img src="readme_files/figure-gfm/genbank_limit-1.png" alt="Distribution of SARS-CoV-2 lineages by country used in case 2. Illustrates analytical limit of Genbank data."  />
+<p class="caption">
+Distribution of SARS-CoV-2 lineages by country used in case 2.
+Illustrates analytical limit of Genbank data.
+</p>
+
+</div>
+
+``` r
 #library(treedater)
 # Note: Phylogenetic analysis was done using iqtree2.
 #module load iq-tree-2.2.2.7-gcc-12.1.0
@@ -344,7 +412,32 @@ host_rates_df <- read.csv("host_rates.csv", stringsAsFactors = FALSE)
 
 lm_result <- lm(slope ~ immune_status + clade_display, data = host_rates_df)
 print(summary(lm_result))
+```
 
+    ## 
+    ## Call:
+    ## lm(formula = slope ~ immune_status + clade_display, data = host_rates_df)
+    ## 
+    ## Residuals:
+    ##       Min        1Q    Median        3Q       Max 
+    ## -0.015391 -0.004286 -0.002020  0.002118  0.036427 
+    ## 
+    ## Coefficients:
+    ##                                 Estimate Std. Error t value Pr(>|t|)  
+    ## (Intercept)                    -0.009210   0.006691  -1.377   0.1814  
+    ## immune_statusImmunocompromised  0.013509   0.005209   2.594   0.0159 *
+    ## clade_display21K (BA.1)         0.012951   0.006332   2.045   0.0519 .
+    ## clade_display21L (BA.2)         0.006738   0.007493   0.899   0.3774  
+    ## clade_display22B (BA.5)         0.003030   0.007476   0.405   0.6889  
+    ## clade_display22E (BQ.1)        -0.002522   0.009848  -0.256   0.8001  
+    ## ---
+    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+    ## 
+    ## Residual standard error: 0.0117 on 24 degrees of freedom
+    ## Multiple R-squared:  0.3166, Adjusted R-squared:  0.1743 
+    ## F-statistic: 2.224 on 5 and 24 DF,  p-value: 0.0849
+
+``` r
 ggplot(
   host_rates_df, 
   aes(
@@ -366,15 +459,26 @@ ggplot(
     size = "Timepoints"
   ) +
   theme_article()
-
 ```
+
+<div class="figure" style="text-align: center">
+
+<img src="readme_files/figure-gfm/evolution_speed-1.png" alt="Dot plot of substitution rate per patient."  />
+<p class="caption">
+Dot plot of substitution rate per patient.
+</p>
+
+</div>
 
 ## Section 5: Mutation Burden by Immune Status
 
-We analyzed the mutation landscape across patients, distinguishing between immunocompetent and immunocompromised hosts.
-First, we compared the total number of unique amino acid (AA) and nucleotide (NT) mutations between the two groups. The boxplot shows that immunocompromised patients tend to have a higher mutation burden.
+We analyzed the mutation landscape across patients, distinguishing
+between immunocompetent and immunocompromised hosts. First, we compared
+the total number of unique amino acid (AA) and nucleotide (NT) mutations
+between the two groups. The boxplot shows that immunocompromised
+patients tend to have a higher mutation burden.
 
-```{r mutation_burden_by_status, fig.cap="Boxplots comparing the number of unique amino acid and nucleotide mutations between immunocompetent and immunocompromised patients, p-values from Wilcoxon tests are shown. "}
+``` r
 library(ggpubr)
 supplementary_data_df <- read.csv("Supplementary_Data.csv", stringsAsFactors = FALSE)
 
@@ -441,10 +545,25 @@ ggplot(
   ) +
   ggpubr::stat_compare_means(label = "p.format", method = "wilcox.test", size = 4)
 ```
+
+<div class="figure" style="text-align: center">
+
+<img src="readme_files/figure-gfm/mutation_burden_by_status-1.png" alt="Boxplots comparing the number of unique amino acid and nucleotide mutations between immunocompetent and immunocompromised patients, p-values from Wilcoxon tests are shown. "  />
+<p class="caption">
+Boxplots comparing the number of unique amino acid and nucleotide
+mutations between immunocompetent and immunocompromised patients,
+p-values from Wilcoxon tests are shown.
+</p>
+
+</div>
+
 ## Section 6: Identifying Recurrent Mutations
 
-To identify mutations that occur more frequently than expected by chance (i.e., recurrent mutations), we developed an empirical statistical threshold. 
-```{r recurrent_mutations_threshold, fig.cap="Rank frequency and empirical threshold for non-random mutations. Top panels are from amino acid mutation and bottom panels are from nucleotide mutations. The right panels show the rank frequency distribution of unique mutations. The left panels show the empirical probability under a binomial null model. The dashed vertical (p=0.05) and horizontal (minimum patient count exceeding P =0.05) lines indicate the significance cut-off."}
+To identify mutations that occur more frequently than expected by chance
+(i.e., recurrent mutations), we developed an empirical statistical
+threshold.
+
+``` r
 library(patchwork)
 library(broom)
 library(logistf)
@@ -491,9 +610,28 @@ plots_nuc <- mutation_plots(nt_long_df, mut_col = "mutations",
 
 (plots_aa$rank | plots_nuc$rank) / (plots_aa$empirical | plots_nuc$empirical)
 ```
-We then identified mutations that were observed in at least two different viral clades and occurred in a significant number of hosts. The heatmaps below display these recurrent mutations, showing their prevalence across clades for both amino acid and nucleotide changes.
 
-```{r recurrent_mutations_heatmap_aa, fig.cap="Heatmap of recurrent amino acid mutations by clade. Black cells represent mutations in a given clade (column), white cells represent their absence, and the adjacent color code indicates the corresponding gene for each mutation. "}
+<div class="figure" style="text-align: center">
+
+<img src="readme_files/figure-gfm/recurrent_mutations_threshold-1.png" alt="Rank frequency and empirical threshold for non-random mutations. Top panels are from amino acid mutation and bottom panels are from nucleotide mutations. The right panels show the rank frequency distribution of unique mutations. The left panels show the empirical probability under a binomial null model. The dashed vertical (p=0.05) and horizontal (minimum patient count exceeding P =0.05) lines indicate the significance cut-off."  />
+<p class="caption">
+Rank frequency and empirical threshold for non-random mutations. Top
+panels are from amino acid mutation and bottom panels are from
+nucleotide mutations. The right panels show the rank frequency
+distribution of unique mutations. The left panels show the empirical
+probability under a binomial null model. The dashed vertical (p=0.05)
+and horizontal (minimum patient count exceeding P =0.05) lines indicate
+the significance cut-off.
+</p>
+
+</div>
+
+We then identified mutations that were observed in at least two
+different viral clades and occurred in a significant number of hosts.
+The heatmaps below display these recurrent mutations, showing their
+prevalence across clades for both amino acid and nucleotide changes.
+
+``` r
 aa_mutations_clade <- aa_long_df %>% distinct(id, gene_mutation, clade_display)
    
 mutation_clade_count <- aa_mutations_clade %>% group_by(gene_mutation) %>%
@@ -532,7 +670,19 @@ pheatmap(aa_matrix,color = colorRampPalette(c("white","#353636"))(50),
    fontsize_row = 5, fontsize_col = 10)
 ```
 
-```{r recurrent_mutations_heatmap_nt, fig.cap="Heatmap of recurrent nucleotied mutations by clade. Black cells represent mutations in a given clade (column), white cells represent their absence, and the adjacent color code indicates the corresponding gene for each mutation. "}
+<div class="figure" style="text-align: center">
+
+<img src="readme_files/figure-gfm/recurrent_mutations_heatmap_aa-1.png" alt="Heatmap of recurrent amino acid mutations by clade. Black cells represent mutations in a given clade (column), white cells represent their absence, and the adjacent color code indicates the corresponding gene for each mutation. "  />
+<p class="caption">
+Heatmap of recurrent amino acid mutations by clade. Black cells
+represent mutations in a given clade (column), white cells represent
+their absence, and the adjacent color code indicates the corresponding
+gene for each mutation.
+</p>
+
+</div>
+
+``` r
 nuc_mutations_clade <- nt_long_df %>% distinct(id, mutations, clade_display)
 mutation_clade_count_nuc <- nuc_mutations_clade %>% group_by(mutations) %>%
    summarise( unique_clades = n_distinct(clade_display),
@@ -587,18 +737,34 @@ pheatmap(mat,color = colorRampPalette(c("white", "#353636"))(2),
          fontsize_col = 10)
 ```
 
+<div class="figure" style="text-align: center">
+
+<img src="readme_files/figure-gfm/recurrent_mutations_heatmap_nt-1.png" alt="Heatmap of recurrent nucleotied mutations by clade. Black cells represent mutations in a given clade (column), white cells represent their absence, and the adjacent color code indicates the corresponding gene for each mutation. "  />
+<p class="caption">
+Heatmap of recurrent nucleotied mutations by clade. Black cells
+represent mutations in a given clade (column), white cells represent
+their absence, and the adjacent color code indicates the corresponding
+gene for each mutation.
+</p>
+
+</div>
+
 ## Section 7: Nested Regression Modeling
 
-Finally, to understand the clinical relevance of mutation patterns, we built a series of nested regression models. The goal was to predict clinical outcomes (death, hospitalization) and infection length based on the presence of mutation groups, while controlling for covariates like treatment, immune status, and comorbidities (CCI score).
+Finally, to understand the clinical relevance of mutation patterns, we
+built a series of nested regression models. The goal was to predict
+clinical outcomes (death, hospitalization) and infection length based on
+the presence of mutation groups, while controlling for covariates like
+treatment, immune status, and comorbidities (CCI score).
 
 Four models were tested:
 
-1. Substitution group only (SG)
-2. SG + antiviral treatment
-3. SG + patient factors (immune status, CCI score)
-4. SG + antiviral treatment + patient factors
+1.  Substitution group only (SG)
+2.  SG + antiviral treatment
+3.  SG + patient factors (immune status, CCI score)
+4.  SG + antiviral treatment + patient factors
 
-```{r AIC_BIC, fig.cap="Model comparison for clinical outcomes using ΔAIC and ΔBIC. Vertical faceted plots represent the outcome tested by each model. Patient factors include age, CCI, and immune status. Lines link mutation groups from model to model. The best-fitting model (lowest ΔAIC or ΔBIC) per-mutation is highlighted in green."}
+``` r
 library(caret)
 library(pROC)
 
@@ -767,3 +933,16 @@ p2 <- ggplot(all_results, aes(x = model, y = deltaBIC, group = mut_grp)) +
 
 p1 / p2
 ```
+
+<div class="figure" style="text-align: center">
+
+<img src="readme_files/figure-gfm/AIC_BIC-1.png" alt="Model comparison for clinical outcomes using ΔAIC and ΔBIC. Vertical faceted plots represent the outcome tested by each model. Patient factors include age, CCI, and immune status. Lines link mutation groups from model to model. The best-fitting model (lowest ΔAIC or ΔBIC) per-mutation is highlighted in green."  />
+<p class="caption">
+Model comparison for clinical outcomes using ΔAIC and ΔBIC. Vertical
+faceted plots represent the outcome tested by each model. Patient
+factors include age, CCI, and immune status. Lines link mutation groups
+from model to model. The best-fitting model (lowest ΔAIC or ΔBIC)
+per-mutation is highlighted in green.
+</p>
+
+</div>
