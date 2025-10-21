@@ -15,7 +15,7 @@ inclusion criteria: reporting original SARS-CoV-2 genome sequences,
 depositing data to GenBank or GISAID, and providing sequence-specific
 metadata.
 
-# Regular expressions used for literature search:
+#### Regular expressions used for literature search:
 
     Variant regex:
       '\bBA\.2(\.|,)?(?=\s|$)'
@@ -46,7 +46,7 @@ metadata.
       'EPI_SET'
       '(?:\b|\()(?!\()EPI[\s_]*ISL[\s_]*\d{6,9}(?:\s*(?:[-~–—‐‑‒–—―\u2013\u2014\x96\x80]|:|to|through)\s*(?:EPI[\s_]*ISL[\s_]*)?\d{1,9})?\)?(?=[.,!?)\s]|$)'
 
-# Python code used for literature search:
+#### Python code used for literature search:
 
 ``` python
 # code displayed but not executed
@@ -213,7 +213,7 @@ if __name__ == "__main__":
     main()
 ```
 
-# Paper Filtering Steps
+#### Paper Filtering Steps
 
 ``` r
 library(tidyverse)

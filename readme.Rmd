@@ -13,7 +13,7 @@ PMIDs from 2023-2024 were downloded from LitCovid and the BioC xml for those pap
 The specific SARS-CoV-2 variants we looked for were as follows: BA.2,  BA.2.86, JN.1, KP.2, KP.3, KP.3.1.1, LB.1, XEC, JN.1.7, and JN.1.18. 
 Two reviewers independently assessed articles for inclusion criteria: reporting original SARS-CoV-2 genome sequences, depositing data to GenBank or GISAID, and providing sequence-specific metadata. 
 
-# Regular expressions used for literature search:
+#### Regular expressions used for literature search:
 ```
 Variant regex:
   '\bBA\.2(\.|,)?(?=\s|$)'
@@ -44,7 +44,7 @@ Repository regex:
   'EPI_SET'
   '(?:\b|\()(?!\()EPI[\s_]*ISL[\s_]*\d{6,9}(?:\s*(?:[-~–—‐‑‒–—―\u2013\u2014\x96\x80]|:|to|through)\s*(?:EPI[\s_]*ISL[\s_]*)?\d{1,9})?\)?(?=[.,!?)\s]|$)'
 ```
-# Python code used for literature search:
+#### Python code used for literature search:
 ```{python, eval = FALSE}
 # code displayed but not executed
 # -*- coding: utf-8 -*-
@@ -209,7 +209,8 @@ def main():
 if __name__ == "__main__":
     main()
 ```
-# Paper Filtering Steps
+
+#### Paper Filtering Steps
 ```{r suppfig1, fig.cap="Number of article records retained at each stage of the filtering process.",echo=TRUE}
 library(tidyverse)
 library(ggbreak)

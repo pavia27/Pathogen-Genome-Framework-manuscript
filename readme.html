@@ -616,8 +616,8 @@ JN.1.7, and JN.1.18. Two reviewers independently assessed articles for
 inclusion criteria: reporting original SARS-CoV-2 genome sequences,
 depositing data to GenBank or GISAID, and providing sequence-specific
 metadata.</p>
-<h1 id="regular-expressions-used-for-literature-search">Regular
-expressions used for literature search:</h1>
+<h4 id="regular-expressions-used-for-literature-search">Regular
+expressions used for literature search:</h4>
 <pre><code>Variant regex:
   &#39;\bBA\.2(\.|,)?(?=\s|$)&#39;
   &#39;\bBA\.2\.86(\.|\,)?(?=\s|$)&#39;
@@ -646,8 +646,8 @@ Repository regex:
   &#39;\b(?i)gisaid\b&#39;
   &#39;EPI_SET&#39;
   &#39;(?:\b|\()(?!\()EPI[\s_]*ISL[\s_]*\d{6,9}(?:\s*(?:[-~–—‐‑‒–—―\u2013\u2014\x96\x80]|:|to|through)\s*(?:EPI[\s_]*ISL[\s_]*)?\d{1,9})?\)?(?=[.,!?)\s]|$)&#39;</code></pre>
-<h1 id="python-code-used-for-literature-search">Python code used for
-literature search:</h1>
+<h4 id="python-code-used-for-literature-search">Python code used for
+literature search:</h4>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="co"># code displayed but not executed</span></span>
 <span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="co"># -*- coding: utf-8 -*-</span></span>
 <span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a><span class="im">import</span> xml.etree.ElementTree <span class="im">as</span> ET</span>
@@ -810,7 +810,7 @@ literature search:</h1>
 <span id="cb2-160"><a href="#cb2-160" tabindex="-1"></a></span>
 <span id="cb2-161"><a href="#cb2-161" tabindex="-1"></a><span class="cf">if</span> <span class="va">__name__</span> <span class="op">==</span> <span class="st">&quot;__main__&quot;</span>:</span>
 <span id="cb2-162"><a href="#cb2-162" tabindex="-1"></a>    main()</span></code></pre></div>
-<h1 id="paper-filtering-steps">Paper Filtering Steps</h1>
+<h4 id="paper-filtering-steps">Paper Filtering Steps</h4>
 <div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span>
 <span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="fu">library</span>(ggbreak)</span>
 <span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a><span class="fu">library</span>(egg)</span>
