@@ -734,6 +734,7 @@ pheatmap(aa_matrix,color = colorRampPalette(c("white","#353636"))(50),
 ```
 
 ```{r recurrent_mutations_heatmap_nt, fig.cap="Heatmap of recurrent nucleotied mutations by clade. Black cells represent mutations in a given clade (column), white cells represent their absence, and the adjacent color code indicates the corresponding gene for each mutation. "}
+
 nuc_mutations_clade <- nt_long_df %>% distinct(id, mutations, clade_display)
 mutation_clade_count_nuc <- nuc_mutations_clade %>% group_by(mutations) %>%
    summarise( unique_clades = n_distinct(clade_display),
@@ -858,12 +859,14 @@ covar_sets <- list(
    M3 = c("immune_state","CCI_score"),
    M4 = c("immune_state","antivirals_binary","CCI_score"))
 
+# Function to compute cross-validated metrics for binary outcomes
 cv_metrics_bin <- function(pred_df, positive = "Yes") {
    p_yes  <- pred_df[[positive]]
    y_true <- ifelse(pred_df$obs == positive, 1, 0)
    list(Brier = mean((p_yes - y_true)^2),
    AUC   = roc(y_true, p_yes, quiet = TRUE)$auc[[1]])}
 
+# Function to run models for a given outcome
 run_models <- function(outcome) {
   is_binary <- outcome %in% c("death", "hospitalization")
   n_folds   <- 5
@@ -937,6 +940,7 @@ run_models <- function(outcome) {
   bind_rows(res_list)
 }
 
+# Run models for each outcome and compile results
 model_results <- lapply(c("death", "hospitalization", "infection_length"), 
    run_models)
 all_results <- bind_rows(model_results) %>%

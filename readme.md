@@ -567,6 +567,7 @@ selected_studies <- c(
 
 supplementary_data_df <- read.csv("Supplementary_Data.csv", stringsAsFactors = FALSE)
 
+
 supplementary_data_df %>%
   filter(study_id %in% selected_studies) %>%
   count(clade_display, location_country) %>%
@@ -605,6 +606,7 @@ Illustrates analytical limit of Genbank data.
  
 host_rates_df <- read.csv("host_rates.csv", stringsAsFactors = FALSE)
 
+# Linear model to assess association between substitution rate, immune status, and clade
 lm_result <- lm(slope ~ immune_status + clade_display, data = host_rates_df)
 print(summary(lm_result))
 ```
@@ -680,6 +682,7 @@ supplementary_data_df <- read.csv("Supplementary_Data.csv", stringsAsFactors = F
 filtered_df <- supplementary_data_df %>% 
   filter(study_id %in% selected_studies)
 
+# Reshape amino acid mutation data to long format 
 aa_long_df <- filtered_df %>%
   pivot_longer(
     cols = c(aaSubstitutions, aaDeletions, aaInsertions),
@@ -692,6 +695,7 @@ aa_long_df <- filtered_df %>%
   filter(!is.na(mutation)) %>%
   mutate(gene_mutation = paste0(gene, "_", mutation))
 
+# Reshape nucleotide mutation data to long format 
 nt_long_df <- filtered_df %>%
   pivot_longer(
     cols = c(substitutions, deletions, insertions, frameShifts),
@@ -702,6 +706,7 @@ nt_long_df <- filtered_df %>%
   separate_rows(mutations, sep = ",") %>%
   filter(!is.na(mutations) & trimws(mutations) != "")
 
+# Summarize unique mutation counts per patient
 mutation_summary_df <- filtered_df %>%
   select(id, immune_state) %>% distinct() %>%
   left_join(
@@ -713,6 +718,7 @@ mutation_summary_df <- filtered_df %>%
     by = "id"
   )
 
+# Combine AA and NT mutation counts for plotting
 combined_mutations_df <- mutation_summary_df %>%
   pivot_longer(
     cols = c(aa_mutation_count, nt_mutation_count),
@@ -763,6 +769,7 @@ library(patchwork)
 library(broom)
 library(logistf)
 
+# Function to generate rank-frequency and empirical threshold plots
 mutation_plots <- function(df, mut_col, label_y = "Number of hosts",
    title_prefix = "") {
    b <- df %>% distinct(id, !!sym(mut_col), clade_display)
@@ -798,6 +805,7 @@ mutation_plots <- function(df, mut_col, label_y = "Number of hosts",
    list(rank = p_rank, empirical = p_empirical)
    }
 
+# Generate plots for amino acid and nucleotide mutations
 plots_aa <- mutation_plots(aa_long_df, mut_col = "gene_mutation",
    title_prefix = "Amino Acid Mutations:")
 plots_nuc <- mutation_plots(nt_long_df, mut_col = "mutations", 
@@ -1018,12 +1026,14 @@ covar_sets <- list(
    M3 = c("immune_state","CCI_score"),
    M4 = c("immune_state","antivirals_binary","CCI_score"))
 
+# Function to compute cross-validated metrics for binary outcomes
 cv_metrics_bin <- function(pred_df, positive = "Yes") {
    p_yes  <- pred_df[[positive]]
    y_true <- ifelse(pred_df$obs == positive, 1, 0)
    list(Brier = mean((p_yes - y_true)^2),
    AUC   = roc(y_true, p_yes, quiet = TRUE)$auc[[1]])}
 
+# Function to run models for a given outcome
 run_models <- function(outcome) {
   is_binary <- outcome %in% c("death", "hospitalization")
   n_folds   <- 5
@@ -1097,6 +1107,7 @@ run_models <- function(outcome) {
   bind_rows(res_list)
 }
 
+# Run models for each outcome and compile results
 model_results <- lapply(c("death", "hospitalization", "infection_length"), 
    run_models)
 all_results <- bind_rows(model_results) %>%
