@@ -2,12 +2,6 @@ A Metadata-Driven Framework for Strengthening Pathogen Genomics: Lessons
 from SARS-Cov-2
 ================
 
-<style>
-body {
-text-align: left;
-}
-</style>
-
 ## Section 1: Literature Search and Paper filtering
 
 PMIDs from 2023-2024 were downloded from LitCovid and the BioC xml for
@@ -20,6 +14,8 @@ JN.1.7, and JN.1.18. Two reviewers independently assessed articles for
 inclusion criteria: reporting original SARS-CoV-2 genome sequences,
 depositing data to GenBank or GISAID, and providing sequence-specific
 metadata.
+
+# Regular expressions used for literature search:
 
     Variant regex:
       '\bBA\.2(\.|,)?(?=\s|$)'
@@ -49,6 +45,175 @@ metadata.
       '\b(?i)gisaid\b'
       'EPI_SET'
       '(?:\b|\()(?!\()EPI[\s_]*ISL[\s_]*\d{6,9}(?:\s*(?:[-~–—‐‑‒–—―\u2013\u2014\x96\x80]|:|to|through)\s*(?:EPI[\s_]*ISL[\s_]*)?\d{1,9})?\)?(?=[.,!?)\s]|$)'
+
+# Python code used for literature search:
+
+``` python
+# code displayed but not executed
+# -*- coding: utf-8 -*-
+import xml.etree.ElementTree as ET
+import re
+import pandas as pd
+import os
+from pathlib import Path
+
+
+class LitCovidParser:
+    def __init__(self, input_dir, regex_file, output_file):
+        self.input_dir = input_dir
+        self.regex_file = regex_file
+        self.output_file = output_file
+        self.pattern = self._load_regex_patterns()
+
+    def _load_regex_patterns(self):
+        """Load regex patterns from file"""
+        try:
+            with open(self.regex_file, 'r', encoding="utf-8") as f:
+                patterns = []
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#'):
+                        patterns.append(line)
+            return '|'.join(patterns)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Regex file not found: {self.regex_file}")
+
+    @staticmethod
+    def extract_document_ids(document):
+        """Extract document identifiers"""
+        ids = {
+            'id': document.find('.//id').text if document.find('.//id') is not None else '',
+            'article-id_pmid': '',
+            'article-id_pmc': '',
+            'article-id_doi': ''
+        }
+
+        first_passage = document.find('.//passage')
+        if first_passage is not None:
+            for infon in first_passage.findall('infon'):
+                if infon.get('key') == 'article-id_pmid':
+                    ids['article-id_pmid'] = infon.text
+                elif infon.get('key') == 'article-id_pmc':
+                    ids['article-id_pmc'] = infon.text
+                elif infon.get('key') == 'article-id_doi':
+                    ids['article-id_doi'] = infon.text
+
+        return ids
+
+    @staticmethod
+    def get_passage_text(passage):
+        """Get text content from passage"""
+        return passage.find('text').text if passage.find('text') is not None else ''
+
+    def find_matches_in_document(self, document):
+        """Find regex matches in document passages"""
+        matches = []
+
+        for passage in document.findall('.//passage'):
+            # Skip references section
+            section_type = passage.find("./infon[@key='section_type']")
+            if section_type is not None and section_type.text == 'REF':
+                continue
+
+            text = self.get_passage_text(passage)
+            if not text:
+                continue
+
+            # Find all regex matches in text
+            pattern_matches = re.finditer(self.pattern, text)
+            for match in pattern_matches:
+                matches.append({
+                    'matched_text': match.group(0),
+                    'sentence': text
+                })
+
+        return matches
+
+    def process_files(self):
+        """Process all XML files in directory and write results to single TSV"""
+        results = []
+        total_matches = 0
+        files_processed = 0
+        files_with_matches = 0
+
+        # Create output file with headers
+        headers = ['id', 'article-id_pmid', 'article-id_pmc', 'article-id_doi', 'Pattern Match', 'Sentence']
+        pd.DataFrame(columns=headers).to_csv(self.output_file, sep='\t', index=False)
+
+        try:
+            # Process each XML file in the directory
+            for xml_file in Path(self.input_dir).glob('*.xml'):
+                try:
+                    # Parse XML file
+                    tree = ET.parse(xml_file)
+                    root = tree.getroot()
+
+                    # Process each document in the file
+                    for document in root.findall('.//document'):
+                        doc_ids = self.extract_document_ids(document)
+                        matches = self.find_matches_in_document(document)
+
+                        if matches:
+                            files_with_matches += 1
+                            # Add matches to results
+                            for match in matches:
+                                result = {
+                                    **doc_ids,
+                                    'Pattern Match': match['matched_text'],
+                                    'Sentence': match['sentence']
+                                }
+                                results.append(result)
+
+                    files_processed += 1
+                    if files_processed % 100 == 0:  # Progress update every 100 files
+                        print(f"Processed {files_processed} files...")
+
+                    # Write results in batches to save memory
+                    if len(results) >= 1000:
+                        df = pd.DataFrame(results)
+                        df.to_csv(self.output_file, mode='a', header=False, index=False, sep='\t')
+                        total_matches += len(results)
+                        results = []
+
+                except ET.ParseError as e:
+                    print(f"Error parsing file {xml_file}: {str(e)}")
+                    continue
+
+            # Write any remaining results
+            if results:
+                df = pd.DataFrame(results)
+                df.to_csv(self.output_file, mode='a', header=False, index=False, sep='\t')
+                total_matches += len(results)
+
+            return total_matches, files_processed, files_with_matches
+
+        except Exception as e:
+            raise Exception(f"Error processing files: {str(e)}")
+
+
+def main():
+    # File paths
+    #Add your file paths here 
+    input_dir = r'<your directory>'
+    regex_file = r'<your file>'
+    output_file = r'<your outputfile>'
+
+    try:
+        parser = LitCovidParser(input_dir, regex_file, output_file)
+        total_matches, files_processed, files_with_matches = parser.process_files()
+        print(f"Successfully processed {files_processed} files")
+        print(f"Found matches in {files_with_matches} files")
+        print(f"Total matches found: {total_matches}")
+        print(f"Results saved to {output_file}")
+    except Exception as e:
+        print(f"Error: {str(e)}")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+# Paper Filtering Steps
 
 ``` r
 library(tidyverse)

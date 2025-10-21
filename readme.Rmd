@@ -3,12 +3,6 @@ title: "A Metadata-Driven Framework for Strengthening Pathogen Genomics: Lessons
 output: github_document
 ---
 
-<style>
-body {
-text-align: left;
-}
-</style>
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.align = 'center')
 ```
@@ -18,6 +12,8 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.align =
 PMIDs from 2023-2024 were downloded from LitCovid and the BioC xml for those papers that were in the PMC_OA subset were downloaded. Using regular expressions, the xml files were searched for terms related to SARS-CoV-2 variants of interest and expressions related to sequences and sequence repositories.
 The specific SARS-CoV-2 variants we looked for were as follows: BA.2,  BA.2.86, JN.1, KP.2, KP.3, KP.3.1.1, LB.1, XEC, JN.1.7, and JN.1.18. 
 Two reviewers independently assessed articles for inclusion criteria: reporting original SARS-CoV-2 genome sequences, depositing data to GenBank or GISAID, and providing sequence-specific metadata. 
+
+# Regular expressions used for literature search:
 ```
 Variant regex:
   '\bBA\.2(\.|,)?(?=\s|$)'
@@ -48,6 +44,172 @@ Repository regex:
   'EPI_SET'
   '(?:\b|\()(?!\()EPI[\s_]*ISL[\s_]*\d{6,9}(?:\s*(?:[-~–—‐‑‒–—―\u2013\u2014\x96\x80]|:|to|through)\s*(?:EPI[\s_]*ISL[\s_]*)?\d{1,9})?\)?(?=[.,!?)\s]|$)'
 ```
+# Python code used for literature search:
+```{python, eval = FALSE}
+# code displayed but not executed
+# -*- coding: utf-8 -*-
+import xml.etree.ElementTree as ET
+import re
+import pandas as pd
+import os
+from pathlib import Path
+
+
+class LitCovidParser:
+    def __init__(self, input_dir, regex_file, output_file):
+        self.input_dir = input_dir
+        self.regex_file = regex_file
+        self.output_file = output_file
+        self.pattern = self._load_regex_patterns()
+
+    def _load_regex_patterns(self):
+        """Load regex patterns from file"""
+        try:
+            with open(self.regex_file, 'r', encoding="utf-8") as f:
+                patterns = []
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#'):
+                        patterns.append(line)
+            return '|'.join(patterns)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Regex file not found: {self.regex_file}")
+
+    @staticmethod
+    def extract_document_ids(document):
+        """Extract document identifiers"""
+        ids = {
+            'id': document.find('.//id').text if document.find('.//id') is not None else '',
+            'article-id_pmid': '',
+            'article-id_pmc': '',
+            'article-id_doi': ''
+        }
+
+        first_passage = document.find('.//passage')
+        if first_passage is not None:
+            for infon in first_passage.findall('infon'):
+                if infon.get('key') == 'article-id_pmid':
+                    ids['article-id_pmid'] = infon.text
+                elif infon.get('key') == 'article-id_pmc':
+                    ids['article-id_pmc'] = infon.text
+                elif infon.get('key') == 'article-id_doi':
+                    ids['article-id_doi'] = infon.text
+
+        return ids
+
+    @staticmethod
+    def get_passage_text(passage):
+        """Get text content from passage"""
+        return passage.find('text').text if passage.find('text') is not None else ''
+
+    def find_matches_in_document(self, document):
+        """Find regex matches in document passages"""
+        matches = []
+
+        for passage in document.findall('.//passage'):
+            # Skip references section
+            section_type = passage.find("./infon[@key='section_type']")
+            if section_type is not None and section_type.text == 'REF':
+                continue
+
+            text = self.get_passage_text(passage)
+            if not text:
+                continue
+
+            # Find all regex matches in text
+            pattern_matches = re.finditer(self.pattern, text)
+            for match in pattern_matches:
+                matches.append({
+                    'matched_text': match.group(0),
+                    'sentence': text
+                })
+
+        return matches
+
+    def process_files(self):
+        """Process all XML files in directory and write results to single TSV"""
+        results = []
+        total_matches = 0
+        files_processed = 0
+        files_with_matches = 0
+
+        # Create output file with headers
+        headers = ['id', 'article-id_pmid', 'article-id_pmc', 'article-id_doi', 'Pattern Match', 'Sentence']
+        pd.DataFrame(columns=headers).to_csv(self.output_file, sep='\t', index=False)
+
+        try:
+            # Process each XML file in the directory
+            for xml_file in Path(self.input_dir).glob('*.xml'):
+                try:
+                    # Parse XML file
+                    tree = ET.parse(xml_file)
+                    root = tree.getroot()
+
+                    # Process each document in the file
+                    for document in root.findall('.//document'):
+                        doc_ids = self.extract_document_ids(document)
+                        matches = self.find_matches_in_document(document)
+
+                        if matches:
+                            files_with_matches += 1
+                            # Add matches to results
+                            for match in matches:
+                                result = {
+                                    **doc_ids,
+                                    'Pattern Match': match['matched_text'],
+                                    'Sentence': match['sentence']
+                                }
+                                results.append(result)
+
+                    files_processed += 1
+                    if files_processed % 100 == 0:  # Progress update every 100 files
+                        print(f"Processed {files_processed} files...")
+
+                    # Write results in batches to save memory
+                    if len(results) >= 1000:
+                        df = pd.DataFrame(results)
+                        df.to_csv(self.output_file, mode='a', header=False, index=False, sep='\t')
+                        total_matches += len(results)
+                        results = []
+
+                except ET.ParseError as e:
+                    print(f"Error parsing file {xml_file}: {str(e)}")
+                    continue
+
+            # Write any remaining results
+            if results:
+                df = pd.DataFrame(results)
+                df.to_csv(self.output_file, mode='a', header=False, index=False, sep='\t')
+                total_matches += len(results)
+
+            return total_matches, files_processed, files_with_matches
+
+        except Exception as e:
+            raise Exception(f"Error processing files: {str(e)}")
+
+
+def main():
+    # File paths
+    #Add your file paths here 
+    input_dir = r'<your directory>'
+    regex_file = r'<your file>'
+    output_file = r'<your outputfile>'
+
+    try:
+        parser = LitCovidParser(input_dir, regex_file, output_file)
+        total_matches, files_processed, files_with_matches = parser.process_files()
+        print(f"Successfully processed {files_processed} files")
+        print(f"Found matches in {files_with_matches} files")
+        print(f"Total matches found: {total_matches}")
+        print(f"Results saved to {output_file}")
+    except Exception as e:
+        print(f"Error: {str(e)}")
+
+
+if __name__ == "__main__":
+    main()
+```
+# Paper Filtering Steps
 ```{r suppfig1, fig.cap="Number of article records retained at each stage of the filtering process.",echo=TRUE}
 library(tidyverse)
 library(ggbreak)
@@ -335,6 +497,7 @@ final_df <- full_join(nextclade_df, metadata_df, by = "genbank") %>%
 We investigated the rate of viral evolution within individual hosts. Using a time-dated phylogenetic tree (`treedater`), we estimated the substitution rate for each patient with longitudinal samples. The plot below shows these intra-host rates, highlighting differences between immune status and viral clade. A linear model was used to formally test the association between substitution rate, immune status, and clade.
 
 ```{r genbank_limit, fig.cap="Distribution of SARS-CoV-2 lineages by country used in case 2. Illustrates analytical limit of Genbank data."}
+
 selected_studies <- c(
   "Manuto_2024", 
   "Gonzalez_Reiche_2023", 
@@ -343,6 +506,7 @@ selected_studies <- c(
 )
 
 supplementary_data_df <- read.csv("Supplementary_Data.csv", stringsAsFactors = FALSE)
+
 
 supplementary_data_df %>%
   filter(study_id %in% selected_studies) %>%
@@ -371,6 +535,7 @@ supplementary_data_df %>%
  
 host_rates_df <- read.csv("host_rates.csv", stringsAsFactors = FALSE)
 
+# Linear model to assess association between substitution rate, immune status, and clade
 lm_result <- lm(slope ~ immune_status + clade_display, data = host_rates_df)
 print(summary(lm_result))
 
@@ -410,6 +575,7 @@ supplementary_data_df <- read.csv("Supplementary_Data.csv", stringsAsFactors = F
 filtered_df <- supplementary_data_df %>% 
   filter(study_id %in% selected_studies)
 
+# Reshape amino acid mutation data to long format 
 aa_long_df <- filtered_df %>%
   pivot_longer(
     cols = c(aaSubstitutions, aaDeletions, aaInsertions),
@@ -422,6 +588,7 @@ aa_long_df <- filtered_df %>%
   filter(!is.na(mutation)) %>%
   mutate(gene_mutation = paste0(gene, "_", mutation))
 
+# Reshape nucleotide mutation data to long format 
 nt_long_df <- filtered_df %>%
   pivot_longer(
     cols = c(substitutions, deletions, insertions, frameShifts),
@@ -432,6 +599,7 @@ nt_long_df <- filtered_df %>%
   separate_rows(mutations, sep = ",") %>%
   filter(!is.na(mutations) & trimws(mutations) != "")
 
+# Summarize unique mutation counts per patient
 mutation_summary_df <- filtered_df %>%
   select(id, immune_state) %>% distinct() %>%
   left_join(
@@ -443,6 +611,7 @@ mutation_summary_df <- filtered_df %>%
     by = "id"
   )
 
+# Combine AA and NT mutation counts for plotting
 combined_mutations_df <- mutation_summary_df %>%
   pivot_longer(
     cols = c(aa_mutation_count, nt_mutation_count),
@@ -478,6 +647,7 @@ library(patchwork)
 library(broom)
 library(logistf)
 
+# Function to generate rank-frequency and empirical threshold plots
 mutation_plots <- function(df, mut_col, label_y = "Number of hosts",
    title_prefix = "") {
    b <- df %>% distinct(id, !!sym(mut_col), clade_display)
@@ -513,6 +683,7 @@ mutation_plots <- function(df, mut_col, label_y = "Number of hosts",
    list(rank = p_rank, empirical = p_empirical)
    }
 
+# Generate plots for amino acid and nucleotide mutations
 plots_aa <- mutation_plots(aa_long_df, mut_col = "gene_mutation",
    title_prefix = "Amino Acid Mutations:")
 plots_nuc <- mutation_plots(nt_long_df, mut_col = "mutations", 
@@ -523,6 +694,7 @@ plots_nuc <- mutation_plots(nt_long_df, mut_col = "mutations",
 We then identified mutations that were observed in at least two different viral clades and occurred in a significant number of hosts. The heatmaps below display these recurrent mutations, showing their prevalence across clades for both amino acid and nucleotide changes.
 
 ```{r recurrent_mutations_heatmap_aa, fig.cap="Heatmap of recurrent amino acid mutations by clade. Black cells represent mutations in a given clade (column), white cells represent their absence, and the adjacent color code indicates the corresponding gene for each mutation. "}
+
 aa_mutations_clade <- aa_long_df %>% distinct(id, gene_mutation, clade_display)
    
 mutation_clade_count <- aa_mutations_clade %>% group_by(gene_mutation) %>%
