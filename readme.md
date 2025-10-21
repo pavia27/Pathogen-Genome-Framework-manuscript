@@ -8,17 +8,47 @@ text-align: left;
 }
 </style>
 
-## Section 1: Literature Search and Filtering
+## Section 1: Literature Search and Paper filtering
 
-A literature search was performed using LitCovid for PMC articles
-published after January 2023. Open-access articles were screened with
-regular expressions to identify (1) sequence repositories (GenBank, SRA,
-GISAID), (2) accession number patterns, and (3) references to specific
-SARS-CoV-2 variants (BA.2, BA.2.86, JN.1, KP.2, KP.3, KP.3.1.1, LB.1,
-XEC, JN.1.7, and JN.1.18). Two reviewers independently assessed articles
-for inclusion criteria: reporting original SARS-CoV-2 genome sequences,
+PMIDs from 2023-2024 were downloded from LitCovid and the BioC xml for
+those papers that were in the PMC_OA subset were downloaded. Using
+regular expressions, the xml files were searched for terms related to
+SARS-CoV-2 variants of interest and expressions related to sequences and
+sequence repositories. The specific SARS-CoV-2 variants we looked for
+were as follows: BA.2, BA.2.86, JN.1, KP.2, KP.3, KP.3.1.1, LB.1, XEC,
+JN.1.7, and JN.1.18. Two reviewers independently assessed articles for
+inclusion criteria: reporting original SARS-CoV-2 genome sequences,
 depositing data to GenBank or GISAID, and providing sequence-specific
 metadata.
+
+    Variant regex:
+      '\bBA\.2(\.|,)?(?=\s|$)'
+      '\bBA\.2\.86(\.|\,)?(?=\s|$)'
+      '\bJN\.1(\.|\,)?(?=\s|$)'
+      '\bKP\.2(\.|\,)?(?=\s|$)'
+      '\bKP\.3(\.|\,)(?=\s|$)'
+      '\bKP\.3\.1\.1(\.|\,)?(?=\s|$)'
+      '\bLB\.1(\.|\,)?(?=\s|$)'
+      '\bXEC(\.|\,)?(?=\s|$)'   
+      '\bJN\.1\.7(\.|\,)?(?=\s|$)'
+      '\bJN\.1\.18(\.|\,)?(?=\s|$)'
+      '\bFLIP(\.|\,)?(?=\s|$)'
+      '\bFIRT(\.|\,)?(?=\s|$)'
+      
+    Repository regex:
+      '(?-i:\b\(?(MP|OF|MN|MQ|PA|HG|LC|OC|OE|LR|FR|BS|OB|MT|OA|PQ|OZ|OD|MW|PP|OR|OQ|MZ|OP|OK|OL|ON|OM|OW|OU|OX|OY|OV)\d{6}(?:(?:\s*[-~–—‐‑‒–—―\u2013\u2014\x96\x80{1,2}]       \s*|\s+to\s+|\s*:\s*)(?:(MP|OF|MN|MQ|PA|HG|LC|OC|OE|LR|FR|BS|OB|MT|OA|PQ|OZ|OD|MW|PP|OR|OQ|MZ|OP|OK|OL|ON|OM|OW|OU|OX|OY|OV)\d{6}|\d{2,4}))?\)?[.,:]?\b)'
+      '\b\(?SAM[A-Z]{1,2}\d{8}(?:\s*[-–—‐‑‒–—―\u2013\u2014\x96\x80Â{1,2}]?\s*:?\s*(?:SAM[A-Z]{1,2}\d{8}|\d{2,8}|\d{8}))?\)?(?=\b|[.,!?])'
+      '\b\(?PRJ[A-Z]{2}\d{5,8}\)?'
+      '\b\(?SR[A-Z]{1}\d{7,8}(?:\s*[-–—‐‑‒–—―\u2013\u2014\x96\x80{1,2}]\s*(?:SR[A-Z]{1}\d{7,8}|\d{2,8}|\d{8}))?\)?(?=\b|[.,!?])'
+      '(?i)gen\s?bank'
+      '(?i)bio\s?(sample|project)(s)?'
+      '#(?i)accession number(s)?' #removed due to noise
+      '#\bNCBI\b' #removed due to noise
+      '\bSRA\b'
+      '(?i)sequence read archive'
+      '\b(?i)gisaid\b'
+      'EPI_SET'
+      '(?:\b|\()(?!\()EPI[\s_]*ISL[\s_]*\d{6,9}(?:\s*(?:[-~–—‐‑‒–—―\u2013\u2014\x96\x80]|:|to|through)\s*(?:EPI[\s_]*ISL[\s_]*)?\d{1,9})?\)?(?=[.,!?)\s]|$)'
 
 ``` r
 library(tidyverse)
