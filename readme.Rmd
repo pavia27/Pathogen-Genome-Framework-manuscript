@@ -944,6 +944,7 @@ run_models <- function(outcome) {
 # Run models for each outcome and compile results
 model_results <- lapply(c("death", "hospitalization", "infection_length"), 
    run_models)
+
 all_results <- bind_rows(model_results) %>%
    group_by(mut_grp, outcome) %>%
    mutate(deltaAIC = AIC - min(AIC, na.rm = TRUE),
