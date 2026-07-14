@@ -49,7 +49,7 @@ metadata.
 #### Python code used for literature search:
 
 ``` python
-# code displayed but not executed
+# code displayed for reference (not executed during knit)
 # -*- coding: utf-8 -*-
 import xml.etree.ElementTree as ET
 import re
@@ -258,6 +258,7 @@ ggplot(paper_counts_df, aes(x = step, y = value, fill = year)) +
 
 <img src="readme_files/figure-gfm/suppfig1-1.png" alt="Number of article records retained at each stage of the filtering process."  />
 <p class="caption">
+
 Number of article records retained at each stage of the filtering
 process.
 </p>
@@ -313,6 +314,7 @@ pheatmap(
 
 <img src="readme_files/figure-gfm/fig1-1.png" alt="Heatmap of sequence-specific patient metadata collected. Dark blocks represent metadata in GenBank, light blocks represent metadata extracted from publication text, and white blocks represent missing metadata. Local refers to state or city versus county level location. CT refers to RT-PCR cycle threshold with CT_precision indicating either exact value or if a range was reported. Symptom_status refers to either asymptomatic or symptomatic cases and Symptoms lists the reported symptoms. Vaccination_Status refers to whether a patient was vaccinated and Vaccine_dose specifies the number of doses received prior to sequencing. Comorbidity_Status refers to the presence or absence of comorbidities and Comorbidity lists the specific conditions reported."  />
 <p class="caption">
+
 Heatmap of sequence-specific patient metadata collected. Dark blocks
 represent metadata in GenBank, light blocks represent metadata extracted
 from publication text, and white blocks represent missing metadata.
@@ -376,27 +378,29 @@ The cleaned dataset (`Supplementary_Data.csv`) is used for all
 subsequent analyses.
 
 ``` r
+#Chunck has already been run and saved the output as "Supplementary_Data.csv" for publication
 library(dplyr)
 library(lubridate)
 
-metadata_files <- list.files("metadata", pattern = "\\.csv$", full.names = TRUE)
+metadata_files <- list.files("/Users/zeus/Library/CloudStorage/Dropbox-ASU/Michael Pavia/01_EHE/04_SARS_data/02_metadata_study/metadata", pattern = "\\.csv$", full.names = TRUE)
 
 # Read each file, add study prefix and standardize columns
 metadata_list <- lapply(metadata_files, function(file_path) {
   data <- read.csv(file_path, stringsAsFactors = FALSE)
   file_name <- basename(file_path)
   study_prefix <- sub("\\.csv$", "", file_name)
-  data$study <- study_prefix
+  data$study_id <- study_prefix
   data$ct <- as.character(data$ct)
   colnames(data) <- c(
     "genbank","id","sex","age","hospitalization","death","infection_length",
     "vaccination","vaccine_dose","monoclonal_ab","antivirals","biological_therapy",
-    "oxygen_therapy","ct","ct_precision","immune_state","collection_date",
-    "commorbidity","commorbidity_type","location_country", "location_city",
+    "oxygen_therapy","ct","ct_precision","CD4.CD8.Lymphocyte.Counts","immune_state","collection_date",
+    "comorbidity","comorbidity_type","location_country", "location_city",
     "sample_type","symptom","symptom_type","CCI_score","study_id"
   )
   return(data)
 })
+
 
 # Combine all study metadata into a single data frame
 metadata_df <- do.call(rbind, metadata_list)
@@ -412,7 +416,7 @@ metadata_df$symptom_type[metadata_df$symptom_type %in% c("asymptomatic")] <- "As
 metadata_df$symptom_type[metadata_df$symptom_type %in% c("\nunknown", "", "unknown\nunknown", "unknown")] <- NA
 
 metadata_df$immune_state[metadata_df$immune_state %in% c("I", "immunocompromised")] <- "Immunocompromised"
-metadata_df$immune_state[metadata_df$immune_state %in% c("H")] <- "Healthy"
+metadata_df$immune_state[metadata_df$immune_state %in% c("H")] <- "Immunocompetent"
 
 metadata_df$vaccination[metadata_df$vaccination %in% c("Moderna mRNA", "Pfizer mRNA", "yes")] <- "Yes"
 metadata_df$vaccination[metadata_df$vaccination %in% c("")] <- NA
@@ -450,8 +454,8 @@ metadata_df$age_group[metadata_df$age_group %in% c(" 51-55", " 56-60")] <- "50-5
 # Date formatting with lubridate
 metadata_df$collection_date <- mdy(metadata_df$collection_date)
 
-metadata_df$commorbidity[metadata_df$commorbidity %in% c("yes")] <- "Yes"
-metadata_df$commorbidity[metadata_df$commorbidity %in% c("", "N/a", "none")] <- NA
+metadata_df$comorbidity[metadata_df$comorbidity %in% c("yes")] <- "Yes"
+metadata_df$comorbidity[metadata_df$comorbidity %in% c("", "N/a", "none")] <- NA
 
 metadata_df$ct_precision[metadata_df$ct_precision %in% c("")] <- NA
 metadata_df$ct_precision[metadata_df$ct_precision %in% c("range ")] <- "range"
@@ -473,6 +477,8 @@ metadata_df$biological_therapy[metadata_df$biological_therapy %in% c("", "none")
 metadata_df$oxygen_therapy[metadata_df$oxygen_therapy %in% c("NIV")] <- "Non-invasive ventilation"
 metadata_df$oxygen_therapy[metadata_df$oxygen_therapy %in% c("HFNC")] <- "high-flow nasal cannula"
 metadata_df$oxygen_therapy[metadata_df$oxygen_therapy %in% c("IMV")] <- "invasive mechanical ventilation"
+metadata_df$oxygen_therapy[metadata_df$oxygen_therapy %in% c("IMV, ECMO")] <- "invasive mechanical ventilation and Extracorporeal Membrane Oxygenation"
+
 
 metadata_df$sample_type[metadata_df$sample_type %in% c(
   "Nasopharyngeal (NP)","nasopharyngeal swab","Nasopharyngeal swabs",
@@ -502,6 +508,10 @@ metadata_df$sample_type[metadata_df$sample_type %in% c(
 metadata_df$monoclonal_ab[metadata_df$monoclonal_ab %in% c("BAM/ETE")] <- "Bamlanivimab and Etesevimab"
 metadata_df$monoclonal_ab[metadata_df$monoclonal_ab %in% c("CAS/IMD")] <- "Casirivimab and Imdevimab"
 metadata_df$antivirals[metadata_df$antivirals %in% c("RMD")] <- "Remdesiver"
+metadata_df$antivirals[metadata_df$antivirals %in% c("TIX/CIL")] <- "Tixagemivab and Cilgavimab"
+metadata_df$antivirals[metadata_df$antivirals %in% c("SOT")] <- "Sotrovimab"
+
+
 
 # Derive treatment_type column
 metadata_df <- metadata_df %>%
@@ -520,15 +530,23 @@ metadata_df <- metadata_df %>%
   mutate(treatment_type = ifelse(treatment_type == "", NA, treatment_type))
 
 # Map commorbidity types to descriptive labels
-metadata_df$commorbidity_type[metadata_df$commorbidity_type %in% c("HD")] <- "Cardiovascular disease"
-metadata_df$commorbidity_type[metadata_df$commorbidity_type %in% c("CCV")] <- "Chronic cerebral vasculopathy"
-metadata_df$commorbidity_type[metadata_df$commorbidity_type %in% c("DM2", "Type 2 diabetes")] <- "Diabetes mellitus type 2"
-metadata_df$commorbidity_type[metadata_df$commorbidity_type %in% c("CKD")] <- "Chronic kidney disease"
-metadata_df$commorbidity_type[metadata_df$commorbidity_type %in% c("CHL")] <- "Combined hyperlipidemia"
-metadata_df$commorbidity_type[metadata_df$commorbidity_type %in% c("HM", "Diffuse B-cell lymphoma", "NHL")] <- "Hematologic malignancy"
-metadata_df$commorbidity_type[metadata_df$commorbidity_type %in% c("ST")] <- "Solid tumor"
-metadata_df$commorbidity_type[metadata_df$commorbidity_type %in% c("CLiD")] <- "Chronic liver disease"
-metadata_df$commorbidity_type[metadata_df$commorbidity_type %in% c("CLuD")] <- "Chronic lung disease"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("HD","CVD")] <- "Cardiovascular disease"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("CCV")] <- "Chronic cerebral vasculopathy"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("DM2", "Type 2 diabetes", "DM2 ")] <- "Diabetes mellitus type 2"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("CKD")] <- "Chronic kidney disease"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("CHL")] <- "Combined hyperlipidemia"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("HM", "Diffuse B-cell lymphoma", "NHL")] <- "Hematologic malignancy"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("ST")] <- "Solid tumor"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("CLiD")] <- "Chronic liver disease"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("CLuD")] <- "Chronic lung disease"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("CKD, CHL")] <- "Combined hyperlipidemia and Chronic kidney disease"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("CCV,DM2, CVD")] <- "Chronic
+cerebral vasculopathy and Diabetes mellitus type 2 and Cardiovascular disease"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("OT","lung transplantation")] <- "Organ Transplant"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("OB")] <- "Obesity"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("MGUS, DM2, OB, Thyroiditis")] <- "Hematologic malignancy and Diabetes mellitus type 2 and Obesity and Thyroiditis"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("NHL, MGUS, DM2, OB, Thyroditis")] <- "Hematologic malignancy and Diabetes mellitus type 2 and Obesity and Thyroiditis"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("MGUS, CVD", "CLL, CVD")] <- "Hematologic malignancy and Cardiovascular disease"
 
 # Read Nextclade results
 nextclade_df <- read.delim("nextclade.tsv", sep = "\t")
@@ -537,15 +555,11 @@ colnames(nextclade_df)[colnames(nextclade_df) == "seqName"] <- "genbank"
 # Merge Nextclade and metadata, filter, and write output
 final_df <- full_join(nextclade_df, metadata_df, by = "genbank") %>%
   filter(
-    !is.na(study),
-    qc.overallStatus != "bad",
-    !clade_who %in% c("Delta", "Kappa", "Mu"),
-    !clade_display %in% c("20A", "20B")
+    !is.na(study_id)
   ) %>%
   mutate(clade_display = ifelse(clade_display == "recombinant", "Recombinant", clade_display))
 
-#write.csv(final_df, "cleaned_data_core.csv", row.names = FALSE)
-#Reanamed as "Supplementary_Data.csv" for publication
+write.csv(final_df, "Supplementary_Data.csv", row.names = FALSE)
 ```
 
 ## Section 4: Intra-host Viral Evolution
@@ -565,8 +579,7 @@ selected_studies <- c(
   "Pavia_2024"
 )
 
-supplementary_data_df <- read.csv("Supplementary_Data.csv", stringsAsFactors = FALSE)
-
+supplementary_data_df <- read.csv("Supplementary_Data.csv", stringsAsFactors = FALSE) 
 
 supplementary_data_df %>%
   filter(study_id %in% selected_studies) %>%
@@ -592,6 +605,7 @@ supplementary_data_df %>%
 
 <img src="readme_files/figure-gfm/genbank_limit-1.png" alt="Distribution of SARS-CoV-2 lineages by country used in case 2. Illustrates analytical limit of Genbank data."  />
 <p class="caption">
+
 Distribution of SARS-CoV-2 lineages by country used in case 2.
 Illustrates analytical limit of Genbank data.
 </p>
@@ -662,6 +676,7 @@ ggplot(
 
 <img src="readme_files/figure-gfm/evolution_speed-1.png" alt="Dot plot of substitution rate per patient."  />
 <p class="caption">
+
 Dot plot of substitution rate per patient.
 </p>
 
@@ -672,15 +687,13 @@ Dot plot of substitution rate per patient.
 We analyzed the mutation landscape across patients, distinguishing
 between immunocompetent and immunocompromised hosts. First, we compared
 the total number of unique amino acid (AA) and nucleotide (NT) mutations
-between the two groups. The boxplot shows that immunocompromised
+between the two groups. Patients with missing immune status were
+excluded from this comparison. The boxplot shows that immunocompromised
 patients tend to have a higher mutation burden.
 
 ``` r
 library(ggpubr)
-supplementary_data_df <- read.csv("Supplementary_Data.csv", stringsAsFactors = FALSE)
-
-filtered_df <- supplementary_data_df %>% 
-  filter(study_id %in% selected_studies)
+filtered_df <- read.csv("subset_patient_coded.csv", stringsAsFactors = FALSE)
 
 # Reshape amino acid mutation data to long format 
 aa_long_df <- filtered_df %>%
@@ -704,18 +717,27 @@ nt_long_df <- filtered_df %>%
   ) %>%
   mutate(mutations = str_remove(mutations, ",\\s*$")) %>%
   separate_rows(mutations, sep = ",") %>%
-  filter(!is.na(mutations) & trimws(mutations) != "")
+  mutate(mutations = trimws(mutations)) %>%
+  filter(!is.na(mutations) & mutations != "") %>%
+  mutate(type_mutation = paste0(mutation_type, "_", mutations))
 
-# Summarize unique mutation counts per patient
+# Summarize unique mutation counts per patient (exclude unknown immune status)
 mutation_summary_df <- filtered_df %>%
-  select(id, immune_state) %>% distinct() %>%
+  select(id, immune_state) %>%
+  distinct() %>%
   left_join(
     aa_long_df %>% group_by(id) %>% summarise(aa_mutation_count = n_distinct(gene_mutation)),
     by = "id"
   ) %>%
   left_join(
-    nt_long_df %>% group_by(id) %>% summarise(nt_mutation_count = n_distinct(mutations)),
+    nt_long_df %>% group_by(id) %>% summarise(nt_mutation_count = n_distinct(type_mutation)),
     by = "id"
+  ) %>%
+  mutate(
+    immune_state = factor(
+      immune_state,
+      levels = c("Immunocompetent", "Immunocompromised")
+    )
   )
 
 # Combine AA and NT mutation counts for plotting
@@ -732,7 +754,7 @@ ggplot(
   aes(x = immune_state, y = mutation_count, fill = immune_state)
 ) +
   geom_boxplot(alpha = 0.9, width = 0.9, outlier.shape = NA) +
-  facet_wrap(~mutation_level, scales = "free_y") +
+  facet_wrap(~mutation_level) +
   labs(x = "", y = "Number of Unique Mutations", fill = "") +
   egg::theme_article() +
   scale_fill_manual(values = c(
@@ -751,6 +773,7 @@ ggplot(
 
 <img src="readme_files/figure-gfm/mutation_burden_by_status-1.png" alt="Boxplots comparing the number of unique amino acid and nucleotide mutations between immunocompetent and immunocompromised patients, p-values from Wilcoxon tests are shown. "  />
 <p class="caption">
+
 Boxplots comparing the number of unique amino acid and nucleotide
 mutations between immunocompetent and immunocompromised patients,
 p-values from Wilcoxon tests are shown.
@@ -767,7 +790,6 @@ threshold.
 ``` r
 library(patchwork)
 library(broom)
-library(logistf)
 
 # Function to generate rank-frequency and empirical threshold plots
 mutation_plots <- function(df, mut_col, label_y = "Number of hosts",
@@ -818,6 +840,7 @@ plots_nuc <- mutation_plots(nt_long_df, mut_col = "mutations",
 
 <img src="readme_files/figure-gfm/recurrent_mutations_threshold-1.png" alt="Rank frequency and empirical threshold for non-random mutations. Top panels are from amino acid mutation and bottom panels are from nucleotide mutations. The right panels show the rank frequency distribution of unique mutations. The left panels show the empirical probability under a binomial null model. The dashed vertical (p=0.05) and horizontal (minimum patient count exceeding P =0.05) lines indicate the significance cut-off."  />
 <p class="caption">
+
 Rank frequency and empirical threshold for non-random mutations. Top
 panels are from amino acid mutation and bottom panels are from
 nucleotide mutations. The right panels show the rank frequency
@@ -877,6 +900,7 @@ pheatmap(aa_matrix,color = colorRampPalette(c("white","#353636"))(50),
 
 <img src="readme_files/figure-gfm/recurrent_mutations_heatmap_aa-1.png" alt="Heatmap of recurrent amino acid mutations by clade. Black cells represent mutations in a given clade (column), white cells represent their absence, and the adjacent color code indicates the corresponding gene for each mutation. "  />
 <p class="caption">
+
 Heatmap of recurrent amino acid mutations by clade. Black cells
 represent mutations in a given clade (column), white cells represent
 their absence, and the adjacent color code indicates the corresponding
@@ -944,6 +968,7 @@ pheatmap(mat,color = colorRampPalette(c("white", "#353636"))(2),
 
 <img src="readme_files/figure-gfm/recurrent_mutations_heatmap_nt-1.png" alt="Heatmap of recurrent nucleotied mutations by clade. Black cells represent mutations in a given clade (column), white cells represent their absence, and the adjacent color code indicates the corresponding gene for each mutation. "  />
 <p class="caption">
+
 Heatmap of recurrent nucleotied mutations by clade. Black cells
 represent mutations in a given clade (column), white cells represent
 their absence, and the adjacent color code indicates the corresponding
@@ -967,9 +992,19 @@ Four models were tested:
 3.  SG + patient factors (immune status, CCI score)
 4.  SG + antiviral treatment + patient factors
 
+Models were fit on `subset_patient_coded.csv` (100 genomes with
+patient-level outcomes). Each specification uses `glm` (binomial) or
+`lm` (infection length) for inference (Wald p-values, OR or β, 95% CIs)
+and `caret` 5-fold cross-validation (`glm`/`lm`) for AUC, Brier, or
+RMSE. **Table 1** lists substitution groups significant (p \< 0.05) in
+at least one outcome, split by mortality, hospitalization, and infection
+length. Direction is higher/lower (odds) or longer/shorter (days).
+Asterisks mark p \< 0.05.
+
 ``` r
 library(caret)
 library(pROC)
+library(knitr)
 
 aa_long_df <- aa_long_df %>%
   mutate(
@@ -983,7 +1018,7 @@ h <- aa_long_df %>%
   distinct(genbank, gene_mutation, .keep_all = TRUE) %>%
   mutate(present = 1L) %>%
   pivot_wider(
-    id_cols = c(genbank, id, immune_state, antivirals_binary, AgeGroup,
+    id_cols = c(genbank, id, immune_state, antivirals_binary, age_group,
                hospitalization, CCI_score, biological_therapy_binary,
                monoclonal_ab_binary, death, infection_length),
    names_from = gene_mutation,
@@ -992,7 +1027,7 @@ h <- aa_long_df %>%
 
 h <- h %>% mutate(
    antivirals_binary = factor(antivirals_binary, levels = c("none", "treated")),
-   AgeGroup = factor(AgeGroup, 
+   AgeGroup = factor(age_group, 
    levels = c("30-39","60-69","70-79","80+","40-49","50-59")),
    immune_state = factor(immune_state, levels = c("Immunocompetent", 
       "Immunocompromised")),
@@ -1032,6 +1067,42 @@ cv_metrics_bin <- function(pred_df, positive = "Yes") {
    y_true <- ifelse(pred_df$obs == positive, 1, 0)
    list(Brier = mean((p_yes - y_true)^2),
    AUC   = roc(y_true, p_yes, quiet = TRUE)$auc[[1]])}
+
+# Mutation effect, p-value, and 95% CI from the same glm/lm fit used for AIC/BIC
+extract_mut_effect <- function(glm_fit, mut, is_binary) {
+  coefs <- summary(glm_fit)$coefficients
+  if (!(mut %in% rownames(coefs))) {
+    return(list(
+      p_mut = NA_real_,
+      effect_type = if (is_binary) "OR" else "beta",
+      effect_estimate = NA_real_,
+      effect_ci_lower = NA_real_,
+      effect_ci_upper = NA_real_
+    ))
+  }
+  mut_coef <- coefs[mut, "Estimate"]
+  mut_se   <- coefs[mut, "Std. Error"]
+  mut_ci_lower <- mut_coef - 1.96 * mut_se
+  mut_ci_upper <- mut_coef + 1.96 * mut_se
+  p_mut <- if (is_binary) coefs[mut, "Pr(>|z|)"] else coefs[mut, "Pr(>|t|)"]
+  if (is_binary) {
+    list(
+      p_mut = p_mut,
+      effect_type = "OR",
+      effect_estimate = exp(mut_coef),
+      effect_ci_lower = exp(mut_ci_lower),
+      effect_ci_upper = exp(mut_ci_upper)
+    )
+  } else {
+    list(
+      p_mut = p_mut,
+      effect_type = "beta",
+      effect_estimate = mut_coef,
+      effect_ci_lower = mut_ci_lower,
+      effect_ci_upper = mut_ci_upper
+    )
+  }
+}
 
 # Function to run models for a given outcome
 run_models <- function(outcome) {
@@ -1086,14 +1157,14 @@ run_models <- function(outcome) {
         cvm   <- cv_metrics_bin(caret_fit$pred)
         auc   <- cvm$AUC
         brier <- cvm$Brier
+        rmse  <- NA_real_
       } else {
-        auc <- brier <- NA_real_
+        auc   <- NA_real_
+        brier <- NA_real_
+        rmse  <- caret_fit$results$RMSE
       }
       
-      coefs <- summary(glm_fit)$coefficients
-      p_mut <- if (mut %in% rownames(coefs)) {
-        if (is_binary) coefs[mut, "Pr(>|z|)"] else coefs[mut, "Pr(>|t|)"]
-      } else NA_real_
+      effect <- extract_mut_effect(glm_fit, mut, is_binary)
       
       res_list[[paste(outcome, mut, m, sep = "_")]] <-
         tibble(outcome  = outcome,
@@ -1101,7 +1172,11 @@ run_models <- function(outcome) {
                model = m,
                covars = if (length(covs) > 0) paste(covs, collapse = "+") else "",
                LRT_p = lrt_p, AIC = AIC(glm_fit), BIC = BIC(glm_fit),
-               AUC = auc, Brier = brier, p_mut = p_mut)
+               AUC = auc, Brier = brier, RMSE = rmse, p_mut = effect$p_mut,
+               effect_type = effect$effect_type,
+               effect_estimate = effect$effect_estimate,
+               effect_ci_lower = effect$effect_ci_lower,
+               effect_ci_upper = effect$effect_ci_upper)
     }
   }
   bind_rows(res_list)
@@ -1118,6 +1193,107 @@ all_results <- bind_rows(model_results) %>%
       bestBIC  = deltaBIC == 0) %>%
    ungroup()
 
+# Table 1: quantitative associations from the same model results (all_results)
+model_lab <- c(M1 = "Mutation-only", M2 = "Treatment-adjusted",
+               M3 = "Patient-factor-adjusted", M4 = "Fully adjusted")
+outcome_lab <- c(death = "Mortality", hospitalization = "Hospitalization",
+                 infection_length = "Infection length")
+
+fmt_num <- function(x) {
+  ifelse(is.na(x), "\u2014",
+  ifelse(abs(x) >= 100, formatC(x, format = "f", digits = 0),
+  ifelse(abs(x) >= 10,  formatC(x, format = "f", digits = 1),
+                        formatC(x, format = "f", digits = 2))))
+}
+fmt_p <- function(p) ifelse(is.na(p), "\u2014",
+  ifelse(p < 0.001, "<0.001", formatC(p, format = "f", digits = 3)))
+
+key2orig <- setNames(aa_list, make.names(aa_list))
+grp_disp <- group_map %>%
+  mutate(orig    = lapply(mutations, function(x) unname(key2orig[x])),
+         members = vapply(orig, function(x) paste(sub("_", " ", x), collapse = "; "), character(1)),
+         genes   = vapply(orig, function(x) paste(sort(unique(sub("_.*", "", x))), collapse = ", "), character(1))) %>%
+  select(mut_grp = group_id, members, genes)
+
+sig_mut_grp <- all_results %>%
+  group_by(mut_grp) %>%
+  summarise(min_p_any = suppressWarnings(min(p_mut, na.rm = TRUE)), .groups = "drop") %>%
+  filter(is.finite(min_p_any) & min_p_any < 0.05)
+
+outcome_min_p <- all_results %>%
+  group_by(outcome, mut_grp) %>%
+  summarise(min_p_outcome = suppressWarnings(min(p_mut, na.rm = TRUE)), .groups = "drop")
+
+table1 <- all_results %>%
+  inner_join(sig_mut_grp %>% select(mut_grp), by = "mut_grp") %>%
+  left_join(outcome_min_p, by = c("outcome", "mut_grp")) %>%
+  left_join(grp_disp, by = "mut_grp") %>%
+  mutate(
+    Outcome      = outcome_lab[outcome],
+    Model        = factor(model_lab[model], levels = model_lab),
+    `Effect size` = if_else(effect_type == "OR",
+                            paste0("OR = ", fmt_num(effect_estimate)),
+                            paste0("\u03b2 = ", fmt_num(effect_estimate), " d")),
+    Direction = case_when(
+      is.na(effect_estimate)                       ~ "\u2014",
+      effect_type == "OR"   & effect_estimate > 1  ~ "higher",
+      effect_type == "OR"   & effect_estimate < 1  ~ "lower",
+      effect_type == "beta" & effect_estimate > 0  ~ "longer",
+      effect_type == "beta" & effect_estimate < 0  ~ "shorter",
+      TRUE                                         ~ "\u2014"),
+    `95% CI` = if_else(is.na(effect_ci_lower), "\u2014",
+                       paste0("[", fmt_num(effect_ci_lower), ", ", fmt_num(effect_ci_upper), "]")),
+    `p-value` = paste0(fmt_p(p_mut), if_else(!is.na(p_mut) & p_mut < 0.05, "*", "")),
+    outcome_order = match(outcome, names(outcome_lab))
+  ) %>%
+  arrange(outcome_order, min_p_outcome, mut_grp, Model)
+
+format_table1_outcome <- function(outcome_key) {
+  table1 %>%
+    filter(outcome == outcome_key) %>%
+    group_by(mut_grp) %>%
+    mutate(
+      `Gene(s)`            = if_else(row_number() == 1, genes, ""),
+      `Substitution group` = if_else(row_number() == 1, members, "")
+    ) %>%
+    ungroup() %>%
+    transmute(
+      `Gene(s)`            = `Gene(s)`,
+      `Substitution group` = `Substitution group`,
+      Model                = as.character(Model),
+      `Effect size`        = `Effect size`,
+      Direction            = Direction,
+      `95% CI`             = `95% CI`,
+      `p-value`            = `p-value`
+    )
+}
+
+table1_export <- table1 %>%
+  select(Outcome, `Gene(s)` = genes, `Substitution group` = members,
+         Model, `Effect size`, Direction, `95% CI`, `p-value`)
+write.csv(table1_export, "Table1_genotype_phenotype_associations.csv", row.names = FALSE)
+write.csv(format_table1_outcome("death"), "Table1_mortality.csv", row.names = FALSE)
+write.csv(format_table1_outcome("hospitalization"), "Table1_hospitalization.csv", row.names = FALSE)
+write.csv(format_table1_outcome("infection_length"), "Table1_infection_length.csv", row.names = FALSE)
+
+all_results %>%
+  filter(model == "M4") %>%
+  group_by(outcome) %>%
+  summarise(
+    AUC   = mean(AUC,   na.rm = TRUE),
+    Brier = mean(Brier, na.rm = TRUE),
+    RMSE  = mean(RMSE,  na.rm = TRUE)
+  )
+```
+
+    ## # A tibble: 3 × 4
+    ##   outcome              AUC    Brier  RMSE
+    ##   <chr>              <dbl>    <dbl> <dbl>
+    ## 1 death              0.925   0.0911 NaN  
+    ## 2 hospitalization    0.932   0.0894 NaN  
+    ## 3 infection_length NaN     NaN       19.2
+
+``` r
 p1 <- ggplot(all_results, aes(x = model, y = deltaAIC, group = mut_grp)) +
    geom_line(colour = "#324851", alpha = 0.2, linewidth = .3) +
    geom_point(aes(colour = bestAIC), show.legend = FALSE) +
@@ -1145,6 +1321,7 @@ p1 / p2
 
 <img src="readme_files/figure-gfm/AIC_BIC-1.png" alt="Model comparison for clinical outcomes using ΔAIC and ΔBIC. Vertical faceted plots represent the outcome tested by each model. Patient factors include age, CCI, and immune status. Lines link mutation groups from model to model. The best-fitting model (lowest ΔAIC or ΔBIC) per-mutation is highlighted in green."  />
 <p class="caption">
+
 Model comparison for clinical outcomes using ΔAIC and ΔBIC. Vertical
 faceted plots represent the outcome tested by each model. Patient
 factors include age, CCI, and immune status. Lines link mutation groups
@@ -1153,3 +1330,303 @@ per-mutation is highlighted in green.
 </p>
 
 </div>
+
+``` r
+table1_outcomes <- c(
+  death = "Mortality",
+  hospitalization = "Hospitalization",
+  infection_length = "Infection length"
+)
+for (outcome_key in names(table1_outcomes)) {
+  tbl <- format_table1_outcome(outcome_key)
+  cat("\n\n### Table 1 — ", table1_outcomes[outcome_key], "\n\n", sep = "")
+  print(knitr::kable(
+    tbl,
+    format = "pipe",
+    caption = paste0(
+      "Genotype-phenotype associations (", table1_outcomes[outcome_key],
+      "). Substitution groups significant (p < 0.05, *) in at least one outcome; ",
+      "OR = odds ratio; \u03b2 = days."
+    )
+  ))
+}
+```
+
+### Table 1 — Mortality
+
+| Gene(s) | Substitution group | Model | Effect size | Direction | 95% CI | p-value |
+|:---|:---|:---|:---|:---|:---|:---|
+| S | S Q493R | Mutation-only | OR = 0.07 | lower | \[0.02, 0.23\] | \<0.001\* |
+|  |  | Treatment-adjusted | OR = 0.07 | lower | \[0.02, 0.23\] | \<0.001\* |
+|  |  | Patient-factor-adjusted | OR = 0.00 | lower | \[0.00, Inf\] | 0.996 |
+|  |  | Fully adjusted | OR = 0.00 | lower | \[0.00, Inf\] | 0.995 |
+| S | S L452R | Mutation-only | OR = 14.0 | higher | \[4.26, 46.0\] | \<0.001\* |
+|  |  | Treatment-adjusted | OR = 14.2 | higher | \[4.29, 46.9\] | \<0.001\* |
+|  |  | Patient-factor-adjusted | OR = 984161455 | higher | \[0.00, Inf\] | 0.996 |
+|  |  | Fully adjusted | OR = 923354020 | higher | \[0.00, Inf\] | 0.995 |
+| ORF1a | ORF1a S135R; ORF1a T842I; ORF1a G1307S; ORF1a L3027F | Mutation-only | OR = 17.2 | higher | \[4.65, 63.5\] | \<0.001\* |
+|  |  | Treatment-adjusted | OR = 26.8 | higher | \[5.27, 136\] | \<0.001\* |
+|  |  | Patient-factor-adjusted | OR = 19.2 | higher | \[3.43, 107\] | \<0.001\* |
+|  |  | Fully adjusted | OR = 11.4 | higher | \[1.49, 86.9\] | 0.019\* |
+| N, ORF1a, ORF1b, ORF3a, S | N S413R; ORF1a T3090I; ORF1b T2163I; ORF3a T223I; S T19I; S V213G; S T376A; S D405N; S R408S | Mutation-only | OR = 12.3 | higher | \[3.76, 40.0\] | \<0.001\* |
+|  |  | Treatment-adjusted | OR = 20.5 | higher | \[4.27, 98.3\] | \<0.001\* |
+|  |  | Patient-factor-adjusted | OR = 15.5 | higher | \[2.93, 82.4\] | 0.001\* |
+|  |  | Fully adjusted | OR = 8.92 | higher | \[1.14, 69.8\] | 0.037\* |
+| S | S S371F | Mutation-only | OR = 11.5 | higher | \[3.54, 37.5\] | \<0.001\* |
+|  |  | Treatment-adjusted | OR = 19.3 | higher | \[4.02, 93.0\] | \<0.001\* |
+|  |  | Patient-factor-adjusted | OR = 14.3 | higher | \[2.70, 75.9\] | 0.002\* |
+|  |  | Fully adjusted | OR = 7.73 | higher | \[0.98, 60.9\] | 0.052 |
+| ORF1b | ORF1b R1315C | Mutation-only | OR = 10.2 | higher | \[3.15, 33.0\] | \<0.001\* |
+|  |  | Treatment-adjusted | OR = 17.3 | higher | \[3.56, 83.6\] | \<0.001\* |
+|  |  | Patient-factor-adjusted | OR = 15.5 | higher | \[2.93, 82.4\] | 0.001\* |
+|  |  | Fully adjusted | OR = 8.92 | higher | \[1.14, 69.8\] | 0.037\* |
+| S | S T95I | Mutation-only | OR = 0.12 | lower | \[0.03, 0.42\] | 0.001\* |
+|  |  | Treatment-adjusted | OR = 0.12 | lower | \[0.03, 0.44\] | 0.001\* |
+|  |  | Patient-factor-adjusted | OR = 0.09 | lower | \[0.01, 0.54\] | 0.009\* |
+|  |  | Fully adjusted | OR = 0.17 | lower | \[0.03, 1.03\] | 0.053 |
+| S | S G142D | Mutation-only | OR = 7.38 | higher | \[2.03, 26.8\] | 0.002\* |
+|  |  | Treatment-adjusted | OR = 7.12 | higher | \[1.94, 26.1\] | 0.003\* |
+|  |  | Patient-factor-adjusted | OR = 9.41 | higher | \[1.49, 59.6\] | 0.017\* |
+|  |  | Fully adjusted | OR = 4.25 | higher | \[0.67, 27.1\] | 0.126 |
+| S | S G446S | Mutation-only | OR = 0.18 | lower | \[0.06, 0.58\] | 0.004\* |
+|  |  | Treatment-adjusted | OR = 0.19 | lower | \[0.06, 0.61\] | 0.005\* |
+|  |  | Patient-factor-adjusted | OR = 0.13 | lower | \[0.02, 0.75\] | 0.023\* |
+|  |  | Fully adjusted | OR = 0.30 | lower | \[0.05, 1.88\] | 0.198 |
+| N, ORF1a, ORF9b | N E31-; N R32-; N S33-; ORF1a S3675-; ORF1a G3676-; ORF9b E27-; ORF9b N28-; ORF9b A29- | Mutation-only | OR = 0.26 | lower | \[0.10, 0.69\] | 0.007\* |
+|  |  | Treatment-adjusted | OR = 0.23 | lower | \[0.08, 0.63\] | 0.004\* |
+|  |  | Patient-factor-adjusted | OR = 0.00 | lower | \[0.00, Inf\] | 0.994 |
+|  |  | Fully adjusted | OR = 0.00 | lower | \[0.00, Inf\] | 0.994 |
+| ORF1a | ORF1a T3255I | Mutation-only | OR = 0.09 | lower | \[0.01, 0.94\] | 0.045\* |
+|  |  | Treatment-adjusted | OR = 0.10 | lower | \[0.01, 1.06\] | 0.056 |
+|  |  | Patient-factor-adjusted | OR = 0.02 | lower | \[0.00, 0.35\] | 0.006\* |
+|  |  | Fully adjusted | OR = 0.03 | lower | \[0.00, 0.45\] | 0.011\* |
+| S | S A27S | Mutation-only | OR = 3.67 | higher | \[1.41, 9.53\] | 0.008\* |
+|  |  | Treatment-adjusted | OR = 3.59 | higher | \[1.30, 9.91\] | 0.014\* |
+|  |  | Patient-factor-adjusted | OR = 3.37 | higher | \[0.93, 12.2\] | 0.064 |
+|  |  | Fully adjusted | OR = 1.31 | higher | \[0.27, 6.35\] | 0.741 |
+| S | S Y144- | Mutation-only | OR = 0.25 | lower | \[0.08, 0.74\] | 0.012\* |
+|  |  | Treatment-adjusted | OR = 0.25 | lower | \[0.08, 0.74\] | 0.012\* |
+|  |  | Patient-factor-adjusted | OR = 0.17 | lower | \[0.03, 0.96\] | 0.045\* |
+|  |  | Fully adjusted | OR = 0.09 | lower | \[0.01, 0.75\] | 0.026\* |
+| S | S T547K | Mutation-only | OR = 0.25 | lower | \[0.08, 0.74\] | 0.012\* |
+|  |  | Treatment-adjusted | OR = 0.26 | lower | \[0.09, 0.79\] | 0.017\* |
+|  |  | Patient-factor-adjusted | OR = 0.17 | lower | \[0.03, 0.96\] | 0.045\* |
+|  |  | Fully adjusted | OR = 0.37 | lower | \[0.06, 2.32\] | 0.291 |
+| S | S H69-; S V70- | Mutation-only | OR = 0.47 | lower | \[0.18, 1.24\] | 0.128 |
+|  |  | Treatment-adjusted | OR = 0.47 | lower | \[0.18, 1.23\] | 0.123 |
+|  |  | Patient-factor-adjusted | OR = 0.28 | lower | \[0.05, 1.50\] | 0.137 |
+|  |  | Fully adjusted | OR = 0.11 | lower | \[0.01, 0.87\] | 0.036\* |
+| ORF1b | ORF1b I1566V | Mutation-only | OR = 0.93 | lower | \[0.30, 2.91\] | 0.907 |
+|  |  | Treatment-adjusted | OR = 0.86 | lower | \[0.27, 2.74\] | 0.805 |
+|  |  | Patient-factor-adjusted | OR = 1.61 | higher | \[0.37, 6.93\] | 0.521 |
+|  |  | Fully adjusted | OR = 1.97 | higher | \[0.27, 14.4\] | 0.504 |
+| S | S E484A | Mutation-only | OR = 56644307 | higher | \[0.00, Inf\] | 0.989 |
+|  |  | Treatment-adjusted | OR = 56096276 | higher | \[0.00, Inf\] | 0.989 |
+|  |  | Patient-factor-adjusted | OR = 473236599 | higher | \[0.00, Inf\] | 0.995 |
+|  |  | Fully adjusted | OR = 354945009 | higher | \[0.00, Inf\] | 0.995 |
+| S | S P681H | Mutation-only | OR = 52369265 | higher | \[0.00, Inf\] | 0.990 |
+|  |  | Treatment-adjusted | OR = 50559872 | higher | \[0.00, Inf\] | 0.990 |
+|  |  | Patient-factor-adjusted | OR = 400341057 | higher | \[0.00, Inf\] | 0.996 |
+|  |  | Fully adjusted | OR = 234341139 | higher | \[0.00, Inf\] | 0.996 |
+| ORF1a | ORF1a P3395H | Mutation-only | OR = 46259517 | higher | \[0.00, Inf\] | 0.991 |
+|  |  | Treatment-adjusted | OR = 43017600 | higher | \[0.00, Inf\] | 0.991 |
+|  |  | Patient-factor-adjusted | OR = 386561365 | higher | \[0.00, Inf\] | 0.996 |
+|  |  | Fully adjusted | OR = 143309736 | higher | \[0.00, Inf\] | 0.997 |
+| S | S S477N | Mutation-only | OR = 46259517 | higher | \[0.00, Inf\] | 0.991 |
+|  |  | Treatment-adjusted | OR = 43017599 | higher | \[0.00, Inf\] | 0.991 |
+|  |  | Patient-factor-adjusted | OR = 386561365 | higher | \[0.00, Inf\] | 0.996 |
+|  |  | Fully adjusted | OR = 143309741 | higher | \[0.00, Inf\] | 0.997 |
+| E, M, N, S | E T9I; M Q19E; M A63T; N P13L; N R203K; N G204R; S G339D; S S373P; S S375F; S K417N; S N440K; S Q498R; S N501Y; S Y505H; S H655Y; S N679K; S N764K; S D796Y; S Q954H; S N969K | Mutation-only | OR = 45501164 | higher | \[0.00, Inf\] | 0.992 |
+|  |  | Treatment-adjusted | OR = 42102007 | higher | \[0.00, Inf\] | 0.992 |
+|  |  | Patient-factor-adjusted | OR = 394258374 | higher | \[0.00, Inf\] | 0.996 |
+|  |  | Fully adjusted | OR = 135146970 | higher | \[0.00, Inf\] | 0.997 |
+
+Genotype-phenotype associations (Mortality). Substitution groups
+significant (p \< 0.05, \*) in at least one outcome; OR = odds ratio; β
+= days.
+
+### Table 1 — Hospitalization
+
+| Gene(s) | Substitution group | Model | Effect size | Direction | 95% CI | p-value |
+|:---|:---|:---|:---|:---|:---|:---|
+| ORF1a | ORF1a S135R; ORF1a T842I; ORF1a G1307S; ORF1a L3027F | Mutation-only | OR = 7.45 | higher | \[3.04, 18.3\] | \<0.001\* |
+|  |  | Treatment-adjusted | OR = 6.28 | higher | \[2.47, 15.9\] | \<0.001\* |
+|  |  | Patient-factor-adjusted | OR = 22.7 | higher | \[3.57, 144\] | \<0.001\* |
+|  |  | Fully adjusted | OR = 6.13 | higher | \[0.85, 44.2\] | 0.072 |
+| S | S S371F | Mutation-only | OR = 7.45 | higher | \[3.04, 18.3\] | \<0.001\* |
+|  |  | Treatment-adjusted | OR = 6.31 | higher | \[2.44, 16.3\] | \<0.001\* |
+|  |  | Patient-factor-adjusted | OR = 19.0 | higher | \[3.21, 112\] | 0.001\* |
+|  |  | Fully adjusted | OR = 4.68 | higher | \[0.64, 34.0\] | 0.127 |
+| N, ORF1a, ORF1b, ORF3a, S | N S413R; ORF1a T3090I; ORF1b T2163I; ORF3a T223I; S T19I; S V213G; S T376A; S D405N; S R408S | Mutation-only | OR = 6.80 | higher | \[2.79, 16.6\] | \<0.001\* |
+|  |  | Treatment-adjusted | OR = 5.67 | higher | \[2.21, 14.5\] | \<0.001\* |
+|  |  | Patient-factor-adjusted | OR = 17.9 | higher | \[2.99, 107\] | 0.002\* |
+|  |  | Fully adjusted | OR = 4.18 | higher | \[0.57, 30.7\] | 0.159 |
+| ORF1a | ORF1a P3395H | Mutation-only | OR = 19.1 | higher | \[2.41, 151\] | 0.005\* |
+|  |  | Treatment-adjusted | OR = 16.6 | higher | \[2.06, 134\] | 0.008\* |
+|  |  | Patient-factor-adjusted | OR = 105 | higher | \[8.94, 1234\] | \<0.001\* |
+|  |  | Fully adjusted | OR = 91.3 | higher | \[6.46, 1291\] | \<0.001\* |
+| S | S S477N | Mutation-only | OR = 19.1 | higher | \[2.41, 151\] | 0.005\* |
+|  |  | Treatment-adjusted | OR = 16.6 | higher | \[2.06, 134\] | 0.008\* |
+|  |  | Patient-factor-adjusted | OR = 105 | higher | \[8.94, 1234\] | \<0.001\* |
+|  |  | Fully adjusted | OR = 91.3 | higher | \[6.46, 1291\] | \<0.001\* |
+| ORF1b | ORF1b R1315C | Mutation-only | OR = 4.95 | higher | \[2.11, 11.6\] | \<0.001\* |
+|  |  | Treatment-adjusted | OR = 3.97 | higher | \[1.59, 9.91\] | 0.003\* |
+|  |  | Patient-factor-adjusted | OR = 17.9 | higher | \[2.99, 107\] | 0.002\* |
+|  |  | Fully adjusted | OR = 4.18 | higher | \[0.57, 30.7\] | 0.159 |
+| ORF1b | ORF1b I1566V | Mutation-only | OR = 3.49 | higher | \[1.16, 10.5\] | 0.027\* |
+|  |  | Treatment-adjusted | OR = 3.20 | higher | \[1.03, 9.92\] | 0.044\* |
+|  |  | Patient-factor-adjusted | OR = 9.57 | higher | \[2.50, 36.6\] | \<0.001\* |
+|  |  | Fully adjusted | OR = 29.7 | higher | \[3.42, 258\] | 0.002\* |
+| N, ORF1a, ORF9b | N E31-; N R32-; N S33-; ORF1a S3675-; ORF1a G3676-; ORF9b E27-; ORF9b N28-; ORF9b A29- | Mutation-only | OR = 0.32 | lower | \[0.14, 0.72\] | 0.006\* |
+|  |  | Treatment-adjusted | OR = 0.22 | lower | \[0.09, 0.56\] | 0.002\* |
+|  |  | Patient-factor-adjusted | OR = 1.25 | higher | \[0.35, 4.41\] | 0.732 |
+|  |  | Fully adjusted | OR = 0.53 | lower | \[0.11, 2.63\] | 0.434 |
+| S | S A27S | Mutation-only | OR = 3.73 | higher | \[1.56, 8.93\] | 0.003\* |
+|  |  | Treatment-adjusted | OR = 2.95 | higher | \[1.19, 7.33\] | 0.020\* |
+|  |  | Patient-factor-adjusted | OR = 10.2 | higher | \[1.87, 55.1\] | 0.007\* |
+|  |  | Fully adjusted | OR = 2.78 | higher | \[0.42, 18.4\] | 0.288 |
+| S | S P681H | Mutation-only | OR = 2.03 | higher | \[0.77, 5.33\] | 0.152 |
+|  |  | Treatment-adjusted | OR = 1.92 | higher | \[0.71, 5.20\] | 0.202 |
+|  |  | Patient-factor-adjusted | OR = 9.78 | higher | \[2.06, 46.5\] | 0.004\* |
+|  |  | Fully adjusted | OR = 12.1 | higher | \[1.69, 86.8\] | 0.013\* |
+| S | S L452R | Mutation-only | OR = 2.68 | higher | \[1.17, 6.12\] | 0.019\* |
+|  |  | Treatment-adjusted | OR = 2.80 | higher | \[1.18, 6.61\] | 0.019\* |
+|  |  | Patient-factor-adjusted | OR = 0.64 | lower | \[0.19, 2.20\] | 0.480 |
+|  |  | Fully adjusted | OR = 0.23 | lower | \[0.04, 1.43\] | 0.115 |
+| S | S Q493R | Mutation-only | OR = 0.37 | lower | \[0.16, 0.85\] | 0.019\* |
+|  |  | Treatment-adjusted | OR = 0.36 | lower | \[0.15, 0.85\] | 0.019\* |
+|  |  | Patient-factor-adjusted | OR = 1.56 | higher | \[0.46, 5.33\] | 0.480 |
+|  |  | Fully adjusted | OR = 4.34 | higher | \[0.70, 26.9\] | 0.115 |
+| S | S T95I | Mutation-only | OR = 0.40 | lower | \[0.18, 0.89\] | 0.026\* |
+|  |  | Treatment-adjusted | OR = 0.44 | lower | \[0.19, 1.01\] | 0.053 |
+|  |  | Patient-factor-adjusted | OR = 0.52 | lower | \[0.15, 1.82\] | 0.305 |
+|  |  | Fully adjusted | OR = 0.85 | lower | \[0.18, 4.00\] | 0.837 |
+| S | S E484A | Mutation-only | OR = 1.22 | higher | \[0.50, 2.95\] | 0.665 |
+|  |  | Treatment-adjusted | OR = 1.19 | higher | \[0.48, 2.99\] | 0.708 |
+|  |  | Patient-factor-adjusted | OR = 5.68 | higher | \[1.20, 26.9\] | 0.029\* |
+|  |  | Fully adjusted | OR = 8.07 | higher | \[1.10, 59.1\] | 0.040\* |
+| S | S G142D | Mutation-only | OR = 2.00 | higher | \[0.89, 4.49\] | 0.093 |
+|  |  | Treatment-adjusted | OR = 1.72 | higher | \[0.74, 3.98\] | 0.205 |
+|  |  | Patient-factor-adjusted | OR = 0.83 | lower | \[0.24, 2.85\] | 0.769 |
+|  |  | Fully adjusted | OR = 0.16 | lower | \[0.02, 1.42\] | 0.099 |
+| S | S Y144- | Mutation-only | OR = 0.60 | lower | \[0.27, 1.33\] | 0.210 |
+|  |  | Treatment-adjusted | OR = 0.59 | lower | \[0.26, 1.35\] | 0.214 |
+|  |  | Patient-factor-adjusted | OR = 1.50 | higher | \[0.44, 5.09\] | 0.516 |
+|  |  | Fully adjusted | OR = 1.52 | higher | \[0.33, 7.01\] | 0.593 |
+| S | S G446S | Mutation-only | OR = 0.60 | lower | \[0.27, 1.33\] | 0.210 |
+|  |  | Treatment-adjusted | OR = 0.72 | lower | \[0.31, 1.67\] | 0.449 |
+|  |  | Patient-factor-adjusted | OR = 1.50 | higher | \[0.44, 5.13\] | 0.514 |
+|  |  | Fully adjusted | OR = 224807725 | higher | \[0.00, Inf\] | 0.995 |
+| S | S T547K | Mutation-only | OR = 0.60 | lower | \[0.27, 1.33\] | 0.210 |
+|  |  | Treatment-adjusted | OR = 0.72 | lower | \[0.31, 1.67\] | 0.449 |
+|  |  | Patient-factor-adjusted | OR = 1.50 | higher | \[0.44, 5.09\] | 0.516 |
+|  |  | Fully adjusted | OR = 212500278 | higher | \[0.00, Inf\] | 0.995 |
+| S | S H69-; S V70- | Mutation-only | OR = 0.78 | lower | \[0.35, 1.71\] | 0.532 |
+|  |  | Treatment-adjusted | OR = 0.75 | lower | \[0.33, 1.70\] | 0.495 |
+|  |  | Patient-factor-adjusted | OR = 2.15 | higher | \[0.62, 7.48\] | 0.230 |
+|  |  | Fully adjusted | OR = 1.70 | higher | \[0.37, 7.85\] | 0.498 |
+| ORF1a | ORF1a T3255I | Mutation-only | OR = 0.00 | lower | \[0.00, Inf\] | 0.989 |
+|  |  | Treatment-adjusted | OR = 0.00 | lower | \[0.00, Inf\] | 0.989 |
+|  |  | Patient-factor-adjusted | OR = 0.00 | lower | \[0.00, Inf\] | 0.997 |
+|  |  | Fully adjusted | OR = 0.00 | lower | \[0.00, Inf\] | 0.998 |
+| E, M, N, S | E T9I; M Q19E; M A63T; N P13L; N R203K; N G204R; S G339D; S S373P; S S375F; S K417N; S N440K; S Q498R; S N501Y; S Y505H; S H655Y; S N679K; S N764K; S D796Y; S Q954H; S N969K | Mutation-only | OR = 150030869 | higher | \[0.00, Inf\] | 0.991 |
+|  |  | Treatment-adjusted | OR = 119387894 | higher | \[0.00, Inf\] | 0.991 |
+|  |  | Patient-factor-adjusted | OR = 54395029708526176 | higher | \[0.00, Inf\] | 0.995 |
+|  |  | Fully adjusted | OR = 21309800837963552 | higher | \[0.00, Inf\] | 0.996 |
+
+Genotype-phenotype associations (Hospitalization). Substitution groups
+significant (p \< 0.05, \*) in at least one outcome; OR = odds ratio; β
+= days.
+
+### Table 1 — Infection length
+
+| Gene(s) | Substitution group | Model | Effect size | Direction | 95% CI | p-value |
+|:---|:---|:---|:---|:---|:---|:---|
+| ORF1a | ORF1a S135R; ORF1a T842I; ORF1a G1307S; ORF1a L3027F | Mutation-only | β = 19.2 d | longer | \[10.4, 27.9\] | \<0.001\* |
+|  |  | Treatment-adjusted | β = 17.6 d | longer | \[8.32, 26.9\] | \<0.001\* |
+|  |  | Patient-factor-adjusted | β = 16.6 d | longer | \[7.51, 25.7\] | \<0.001\* |
+|  |  | Fully adjusted | β = 8.64 d | longer | \[-0.62, 17.9\] | 0.071 |
+| S | S S371F | Mutation-only | β = 18.1 d | longer | \[9.25, 26.9\] | \<0.001\* |
+|  |  | Treatment-adjusted | β = 16.4 d | longer | \[6.85, 26.0\] | 0.001\* |
+|  |  | Patient-factor-adjusted | β = 15.4 d | longer | \[6.28, 24.5\] | 0.001\* |
+|  |  | Fully adjusted | β = 6.25 d | longer | \[-3.24, 15.7\] | 0.200 |
+| N, ORF1a, ORF1b, ORF3a, S | N S413R; ORF1a T3090I; ORF1b T2163I; ORF3a T223I; S T19I; S V213G; S T376A; S D405N; S R408S | Mutation-only | β = 17.8 d | longer | \[8.92, 26.6\] | \<0.001\* |
+|  |  | Treatment-adjusted | β = 16.1 d | longer | \[6.48, 25.7\] | 0.001\* |
+|  |  | Patient-factor-adjusted | β = 15.3 d | longer | \[6.17, 24.5\] | 0.001\* |
+|  |  | Fully adjusted | β = 6.40 d | longer | \[-3.07, 15.9\] | 0.189 |
+| ORF1b | ORF1b R1315C | Mutation-only | β = 15.5 d | longer | \[6.60, 24.5\] | \<0.001\* |
+|  |  | Treatment-adjusted | β = 13.5 d | longer | \[3.67, 23.3\] | 0.008\* |
+|  |  | Patient-factor-adjusted | β = 15.3 d | longer | \[6.17, 24.5\] | 0.001\* |
+|  |  | Fully adjusted | β = 6.40 d | longer | \[-3.07, 15.9\] | 0.189 |
+| S | S A27S | Mutation-only | β = 14.1 d | longer | \[4.59, 23.5\] | 0.004\* |
+|  |  | Treatment-adjusted | β = 11.8 d | longer | \[1.86, 21.7\] | 0.022\* |
+|  |  | Patient-factor-adjusted | β = 11.7 d | longer | \[2.39, 21.0\] | 0.016\* |
+|  |  | Fully adjusted | β = 4.29 d | longer | \[-4.71, 13.3\] | 0.353 |
+| E, M, N, S | E T9I; M Q19E; M A63T; N P13L; N R203K; N G204R; S G339D; S S373P; S S375F; S K417N; S N440K; S Q498R; S N501Y; S Y505H; S H655Y; S N679K; S N764K; S D796Y; S Q954H; S N969K | Mutation-only | β = 17.9 d | longer | \[5.26, 30.6\] | 0.007\* |
+|  |  | Treatment-adjusted | β = 15.4 d | longer | \[2.55, 28.3\] | 0.021\* |
+|  |  | Patient-factor-adjusted | β = 18.4 d | longer | \[5.10, 31.7\] | 0.008\* |
+|  |  | Fully adjusted | β = 10.9 d | longer | \[-1.46, 23.3\] | 0.087 |
+| S | S T95I | Mutation-only | β = -11.7 d | shorter | \[-20.9, -2.52\] | 0.014\* |
+|  |  | Treatment-adjusted | β = -10.3 d | shorter | \[-19.5, -1.19\] | 0.029\* |
+|  |  | Patient-factor-adjusted | β = -10.1 d | shorter | \[-19.3, -0.93\] | 0.034\* |
+|  |  | Fully adjusted | β = -6.29 d | shorter | \[-14.6, 2.05\] | 0.143 |
+| S | S Q493R | Mutation-only | β = -10.9 d | shorter | \[-20.3, -1.57\] | 0.024\* |
+|  |  | Treatment-adjusted | β = -10.6 d | shorter | \[-19.8, -1.45\] | 0.025\* |
+|  |  | Patient-factor-adjusted | β = -6.41 d | shorter | \[-17.1, 4.33\] | 0.245 |
+|  |  | Fully adjusted | β = -1.62 d | shorter | \[-11.3, 8.08\] | 0.744 |
+| S | S L452R | Mutation-only | β = 10.9 d | longer | \[1.57, 20.3\] | 0.024\* |
+|  |  | Treatment-adjusted | β = 10.6 d | longer | \[1.45, 19.8\] | 0.025\* |
+|  |  | Patient-factor-adjusted | β = 6.41 d | longer | \[-4.33, 17.1\] | 0.245 |
+|  |  | Fully adjusted | β = 1.62 d | longer | \[-8.08, 11.3\] | 0.744 |
+| ORF1a | ORF1a P3395H | Mutation-only | β = 13.7 d | longer | \[1.17, 26.3\] | 0.035\* |
+|  |  | Treatment-adjusted | β = 11.3 d | longer | \[-1.36, 23.9\] | 0.083 |
+|  |  | Patient-factor-adjusted | β = 13.4 d | longer | \[0.29, 26.5\] | 0.048\* |
+|  |  | Fully adjusted | β = 6.73 d | longer | \[-5.28, 18.7\] | 0.275 |
+| S | S S477N | Mutation-only | β = 12.4 d | longer | \[-0.15, 25.0\] | 0.056 |
+|  |  | Treatment-adjusted | β = 9.97 d | longer | \[-2.72, 22.7\] | 0.127 |
+|  |  | Patient-factor-adjusted | β = 11.7 d | longer | \[-1.45, 24.9\] | 0.085 |
+|  |  | Fully adjusted | β = 4.97 d | longer | \[-7.07, 17.0\] | 0.421 |
+| S | S P681H | Mutation-only | β = 9.03 d | longer | \[-2.00, 20.1\] | 0.112 |
+|  |  | Treatment-adjusted | β = 8.06 d | longer | \[-2.82, 18.9\] | 0.150 |
+|  |  | Patient-factor-adjusted | β = 11.2 d | longer | \[-0.32, 22.8\] | 0.060 |
+|  |  | Fully adjusted | β = 9.58 d | longer | \[-0.62, 19.8\] | 0.069 |
+| S | S G142D | Mutation-only | β = 7.88 d | longer | \[-1.53, 17.3\] | 0.104 |
+|  |  | Treatment-adjusted | β = 6.12 d | longer | \[-3.32, 15.6\] | 0.207 |
+|  |  | Patient-factor-adjusted | β = 4.63 d | longer | \[-4.76, 14.0\] | 0.337 |
+|  |  | Fully adjusted | β = -0.48 d | shorter | \[-9.02, 8.06\] | 0.913 |
+| N, ORF1a, ORF9b | N E31-; N R32-; N S33-; ORF1a S3675-; ORF1a G3676-; ORF9b E27-; ORF9b N28-; ORF9b A29- | Mutation-only | β = -4.97 d | shorter | \[-14.5, 4.51\] | 0.306 |
+|  |  | Treatment-adjusted | β = -6.57 d | shorter | \[-15.9, 2.78\] | 0.172 |
+|  |  | Patient-factor-adjusted | β = 0.86 d | longer | \[-10.0, 11.8\] | 0.878 |
+|  |  | Fully adjusted | β = -1.71 d | shorter | \[-11.3, 7.92\] | 0.729 |
+| S | S E484A | Mutation-only | β = 3.96 d | longer | \[-6.61, 14.5\] | 0.465 |
+|  |  | Treatment-adjusted | β = 3.64 d | longer | \[-6.73, 14.0\] | 0.493 |
+|  |  | Patient-factor-adjusted | β = 6.29 d | longer | \[-5.18, 17.8\] | 0.285 |
+|  |  | Fully adjusted | β = 6.72 d | longer | \[-3.35, 16.8\] | 0.194 |
+| S | S G446S | Mutation-only | β = -5.88 d | shorter | \[-15.3, 3.53\] | 0.223 |
+|  |  | Treatment-adjusted | β = -3.84 d | shorter | \[-13.3, 5.63\] | 0.429 |
+|  |  | Patient-factor-adjusted | β = -3.25 d | shorter | \[-12.6, 6.10\] | 0.497 |
+|  |  | Fully adjusted | β = 2.37 d | longer | \[-6.14, 10.9\] | 0.587 |
+| S | S Y144- | Mutation-only | β = 1.55 d | longer | \[-7.93, 11.0\] | 0.750 |
+|  |  | Treatment-adjusted | β = 1.77 d | longer | \[-7.52, 11.1\] | 0.710 |
+|  |  | Patient-factor-adjusted | β = 5.09 d | longer | \[-4.21, 14.4\] | 0.286 |
+|  |  | Fully adjusted | β = 4.98 d | longer | \[-3.19, 13.2\] | 0.236 |
+| S | S T547K | Mutation-only | β = -5.60 d | shorter | \[-15.0, 3.82\] | 0.247 |
+|  |  | Treatment-adjusted | β = -3.54 d | shorter | \[-13.0, 5.94\] | 0.465 |
+|  |  | Patient-factor-adjusted | β = -3.36 d | shorter | \[-12.7, 5.97\] | 0.482 |
+|  |  | Fully adjusted | β = 2.00 d | longer | \[-6.48, 10.5\] | 0.645 |
+| S | S H69-; S V70- | Mutation-only | β = 2.67 d | longer | \[-6.74, 12.1\] | 0.579 |
+|  |  | Treatment-adjusted | β = 2.53 d | longer | \[-6.70, 11.8\] | 0.592 |
+|  |  | Patient-factor-adjusted | β = 4.41 d | longer | \[-4.97, 13.8\] | 0.360 |
+|  |  | Fully adjusted | β = 2.66 d | longer | \[-5.64, 11.0\] | 0.532 |
+| ORF1b | ORF1b I1566V | Mutation-only | β = -3.60 d | shorter | \[-15.3, 8.14\] | 0.549 |
+|  |  | Treatment-adjusted | β = -5.37 d | shorter | \[-17.0, 6.21\] | 0.365 |
+|  |  | Patient-factor-adjusted | β = -2.86 d | shorter | \[-14.6, 8.91\] | 0.635 |
+|  |  | Fully adjusted | β = -4.53 d | shorter | \[-14.9, 5.83\] | 0.394 |
+| ORF1a | ORF1a T3255I | Mutation-only | β = -7.01 d | shorter | \[-31.0, 17.0\] | 0.568 |
+|  |  | Treatment-adjusted | β = -4.00 d | shorter | \[-27.7, 19.7\] | 0.741 |
+|  |  | Patient-factor-adjusted | β = -1.82 d | shorter | \[-24.4, 20.7\] | 0.875 |
+|  |  | Fully adjusted | β = 6.13 d | longer | \[-13.9, 26.2\] | 0.551 |
+
+Genotype-phenotype associations (Infection length). Substitution groups
+significant (p \< 0.05, \*) in at least one outcome; OR = odds ratio; β
+= days.

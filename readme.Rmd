@@ -45,8 +45,9 @@ Repository regex:
   '(?:\b|\()(?!\()EPI[\s_]*ISL[\s_]*\d{6,9}(?:\s*(?:[-~–—‐‑‒–—―\u2013\u2014\x96\x80]|:|to|through)\s*(?:EPI[\s_]*ISL[\s_]*)?\d{1,9})?\)?(?=[.,!?)\s]|$)'
 ```
 #### Python code used for literature search:
-```{python, eval = FALSE}
-# code displayed but not executed
+
+```python
+# code displayed for reference (not executed during knit)
 # -*- coding: utf-8 -*-
 import xml.etree.ElementTree as ET
 import re
@@ -303,7 +304,6 @@ completeness_df <- data.frame(
 
 # Wilcoxon test for group completeness comparisons; always explicit argument names
 wilcox.test(completeness ~ year, data = completeness_df, exact = FALSE)
-
 ```
 
 ## Section 3: Core Data Preparation and Merging
@@ -324,20 +324,20 @@ The cleaned dataset (`Supplementary_Data.csv`) is used for all subsequent analys
 library(dplyr)
 library(lubridate)
 
-metadata_files <- list.files("metadata", pattern = "\\.csv$", full.names = TRUE)
+metadata_files <- list.files("/Users/zeus/Library/CloudStorage/Dropbox-ASU/Michael Pavia/01_EHE/04_SARS_data/02_metadata_study/metadata", pattern = "\\.csv$", full.names = TRUE)
 
 # Read each file, add study prefix and standardize columns
 metadata_list <- lapply(metadata_files, function(file_path) {
   data <- read.csv(file_path, stringsAsFactors = FALSE)
   file_name <- basename(file_path)
   study_prefix <- sub("\\.csv$", "", file_name)
-  data$study <- study_prefix
+  data$study_id <- study_prefix
   data$ct <- as.character(data$ct)
   colnames(data) <- c(
     "genbank","id","sex","age","hospitalization","death","infection_length",
     "vaccination","vaccine_dose","monoclonal_ab","antivirals","biological_therapy",
-    "oxygen_therapy","ct","ct_precision","immune_state","collection_date",
-    "commorbidity","commorbidity_type","location_country", "location_city",
+    "oxygen_therapy","ct","ct_precision","CD4.CD8.Lymphocyte.Counts","immune_state","collection_date",
+    "comorbidity","comorbidity_type","location_country", "location_city",
     "sample_type","symptom","symptom_type","CCI_score","study_id"
   )
   return(data)
@@ -358,7 +358,7 @@ metadata_df$symptom_type[metadata_df$symptom_type %in% c("asymptomatic")] <- "As
 metadata_df$symptom_type[metadata_df$symptom_type %in% c("\nunknown", "", "unknown\nunknown", "unknown")] <- NA
 
 metadata_df$immune_state[metadata_df$immune_state %in% c("I", "immunocompromised")] <- "Immunocompromised"
-metadata_df$immune_state[metadata_df$immune_state %in% c("H")] <- "Healthy"
+metadata_df$immune_state[metadata_df$immune_state %in% c("H")] <- "Immunocompetent"
 
 metadata_df$vaccination[metadata_df$vaccination %in% c("Moderna mRNA", "Pfizer mRNA", "yes")] <- "Yes"
 metadata_df$vaccination[metadata_df$vaccination %in% c("")] <- NA
@@ -396,8 +396,8 @@ metadata_df$age_group[metadata_df$age_group %in% c(" 51-55", " 56-60")] <- "50-5
 # Date formatting with lubridate
 metadata_df$collection_date <- mdy(metadata_df$collection_date)
 
-metadata_df$commorbidity[metadata_df$commorbidity %in% c("yes")] <- "Yes"
-metadata_df$commorbidity[metadata_df$commorbidity %in% c("", "N/a", "none")] <- NA
+metadata_df$comorbidity[metadata_df$comorbidity %in% c("yes")] <- "Yes"
+metadata_df$comorbidity[metadata_df$comorbidity %in% c("", "N/a", "none")] <- NA
 
 metadata_df$ct_precision[metadata_df$ct_precision %in% c("")] <- NA
 metadata_df$ct_precision[metadata_df$ct_precision %in% c("range ")] <- "range"
@@ -419,6 +419,8 @@ metadata_df$biological_therapy[metadata_df$biological_therapy %in% c("", "none")
 metadata_df$oxygen_therapy[metadata_df$oxygen_therapy %in% c("NIV")] <- "Non-invasive ventilation"
 metadata_df$oxygen_therapy[metadata_df$oxygen_therapy %in% c("HFNC")] <- "high-flow nasal cannula"
 metadata_df$oxygen_therapy[metadata_df$oxygen_therapy %in% c("IMV")] <- "invasive mechanical ventilation"
+metadata_df$oxygen_therapy[metadata_df$oxygen_therapy %in% c("IMV, ECMO")] <- "invasive mechanical ventilation and Extracorporeal Membrane Oxygenation"
+
 
 metadata_df$sample_type[metadata_df$sample_type %in% c(
   "Nasopharyngeal (NP)","nasopharyngeal swab","Nasopharyngeal swabs",
@@ -448,6 +450,10 @@ metadata_df$sample_type[metadata_df$sample_type %in% c(
 metadata_df$monoclonal_ab[metadata_df$monoclonal_ab %in% c("BAM/ETE")] <- "Bamlanivimab and Etesevimab"
 metadata_df$monoclonal_ab[metadata_df$monoclonal_ab %in% c("CAS/IMD")] <- "Casirivimab and Imdevimab"
 metadata_df$antivirals[metadata_df$antivirals %in% c("RMD")] <- "Remdesiver"
+metadata_df$antivirals[metadata_df$antivirals %in% c("TIX/CIL")] <- "Tixagemivab and Cilgavimab"
+metadata_df$antivirals[metadata_df$antivirals %in% c("SOT")] <- "Sotrovimab"
+
+
 
 # Derive treatment_type column
 metadata_df <- metadata_df %>%
@@ -466,15 +472,23 @@ metadata_df <- metadata_df %>%
   mutate(treatment_type = ifelse(treatment_type == "", NA, treatment_type))
 
 # Map commorbidity types to descriptive labels
-metadata_df$commorbidity_type[metadata_df$commorbidity_type %in% c("HD")] <- "Cardiovascular disease"
-metadata_df$commorbidity_type[metadata_df$commorbidity_type %in% c("CCV")] <- "Chronic cerebral vasculopathy"
-metadata_df$commorbidity_type[metadata_df$commorbidity_type %in% c("DM2", "Type 2 diabetes")] <- "Diabetes mellitus type 2"
-metadata_df$commorbidity_type[metadata_df$commorbidity_type %in% c("CKD")] <- "Chronic kidney disease"
-metadata_df$commorbidity_type[metadata_df$commorbidity_type %in% c("CHL")] <- "Combined hyperlipidemia"
-metadata_df$commorbidity_type[metadata_df$commorbidity_type %in% c("HM", "Diffuse B-cell lymphoma", "NHL")] <- "Hematologic malignancy"
-metadata_df$commorbidity_type[metadata_df$commorbidity_type %in% c("ST")] <- "Solid tumor"
-metadata_df$commorbidity_type[metadata_df$commorbidity_type %in% c("CLiD")] <- "Chronic liver disease"
-metadata_df$commorbidity_type[metadata_df$commorbidity_type %in% c("CLuD")] <- "Chronic lung disease"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("HD","CVD")] <- "Cardiovascular disease"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("CCV")] <- "Chronic cerebral vasculopathy"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("DM2", "Type 2 diabetes", "DM2 ")] <- "Diabetes mellitus type 2"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("CKD")] <- "Chronic kidney disease"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("CHL")] <- "Combined hyperlipidemia"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("HM", "Diffuse B-cell lymphoma", "NHL")] <- "Hematologic malignancy"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("ST")] <- "Solid tumor"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("CLiD")] <- "Chronic liver disease"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("CLuD")] <- "Chronic lung disease"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("CKD, CHL")] <- "Combined hyperlipidemia and Chronic kidney disease"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("CCV,DM2, CVD")] <- "Chronic
+cerebral vasculopathy and Diabetes mellitus type 2 and Cardiovascular disease"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("OT","lung transplantation")] <- "Organ Transplant"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("OB")] <- "Obesity"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("MGUS, DM2, OB, Thyroiditis")] <- "Hematologic malignancy and Diabetes mellitus type 2 and Obesity and Thyroiditis"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("NHL, MGUS, DM2, OB, Thyroditis")] <- "Hematologic malignancy and Diabetes mellitus type 2 and Obesity and Thyroiditis"
+metadata_df$comorbidity_type[metadata_df$comorbidity_type %in% c("MGUS, CVD", "CLL, CVD")] <- "Hematologic malignancy and Cardiovascular disease"
 
 # Read Nextclade results
 nextclade_df <- read.delim("nextclade.tsv", sep = "\t")
@@ -483,15 +497,11 @@ colnames(nextclade_df)[colnames(nextclade_df) == "seqName"] <- "genbank"
 # Merge Nextclade and metadata, filter, and write output
 final_df <- full_join(nextclade_df, metadata_df, by = "genbank") %>%
   filter(
-    !is.na(study),
-    qc.overallStatus != "bad",
-    !clade_who %in% c("Delta", "Kappa", "Mu"),
-    !clade_display %in% c("20A", "20B")
+    !is.na(study_id)
   ) %>%
   mutate(clade_display = ifelse(clade_display == "recombinant", "Recombinant", clade_display))
 
-#write.csv(final_df, "cleaned_data_core.csv", row.names = FALSE)
-#Reanamed as "Supplementary_Data.csv" for publication
+write.csv(final_df, "Supplementary_Data.csv", row.names = FALSE)
 
 ```
 
@@ -501,7 +511,6 @@ We investigated the rate of viral evolution within individual hosts. Using a tim
 
 ```{r genbank_limit, fig.cap="Distribution of SARS-CoV-2 lineages by country used in case 2. Illustrates analytical limit of Genbank data."}
 
-
 selected_studies <- c(
   "Manuto_2024", 
   "Gonzalez_Reiche_2023", 
@@ -509,8 +518,7 @@ selected_studies <- c(
   "Pavia_2024"
 )
 
-supplementary_data_df <- read.csv("Supplementary_Data.csv", stringsAsFactors = FALSE)
-
+supplementary_data_df <- read.csv("Supplementary_Data.csv", stringsAsFactors = FALSE) 
 
 supplementary_data_df %>%
   filter(study_id %in% selected_studies) %>%
@@ -570,14 +578,11 @@ ggplot(
 ## Section 5: Mutation Burden by Immune Status
 
 We analyzed the mutation landscape across patients, distinguishing between immunocompetent and immunocompromised hosts.
-First, we compared the total number of unique amino acid (AA) and nucleotide (NT) mutations between the two groups. The boxplot shows that immunocompromised patients tend to have a higher mutation burden.
+First, we compared the total number of unique amino acid (AA) and nucleotide (NT) mutations between the two groups. Patients with missing immune status were excluded from this comparison. The boxplot shows that immunocompromised patients tend to have a higher mutation burden.
 
 ```{r mutation_burden_by_status, fig.cap="Boxplots comparing the number of unique amino acid and nucleotide mutations between immunocompetent and immunocompromised patients, p-values from Wilcoxon tests are shown. "}
 library(ggpubr)
-supplementary_data_df <- read.csv("Supplementary_Data.csv", stringsAsFactors = FALSE)
-
-filtered_df <- supplementary_data_df %>% 
-  filter(study_id %in% selected_studies)
+filtered_df <- read.csv("subset_patient_coded.csv", stringsAsFactors = FALSE)
 
 # Reshape amino acid mutation data to long format 
 aa_long_df <- filtered_df %>%
@@ -601,18 +606,27 @@ nt_long_df <- filtered_df %>%
   ) %>%
   mutate(mutations = str_remove(mutations, ",\\s*$")) %>%
   separate_rows(mutations, sep = ",") %>%
-  filter(!is.na(mutations) & trimws(mutations) != "")
+  mutate(mutations = trimws(mutations)) %>%
+  filter(!is.na(mutations) & mutations != "") %>%
+  mutate(type_mutation = paste0(mutation_type, "_", mutations))
 
-# Summarize unique mutation counts per patient
+# Summarize unique mutation counts per patient (exclude unknown immune status)
 mutation_summary_df <- filtered_df %>%
-  select(id, immune_state) %>% distinct() %>%
+  select(id, immune_state) %>%
+  distinct() %>%
   left_join(
     aa_long_df %>% group_by(id) %>% summarise(aa_mutation_count = n_distinct(gene_mutation)),
     by = "id"
   ) %>%
   left_join(
-    nt_long_df %>% group_by(id) %>% summarise(nt_mutation_count = n_distinct(mutations)),
+    nt_long_df %>% group_by(id) %>% summarise(nt_mutation_count = n_distinct(type_mutation)),
     by = "id"
+  ) %>%
+  mutate(
+    immune_state = factor(
+      immune_state,
+      levels = c("Immunocompetent", "Immunocompromised")
+    )
   )
 
 # Combine AA and NT mutation counts for plotting
@@ -629,7 +643,7 @@ ggplot(
   aes(x = immune_state, y = mutation_count, fill = immune_state)
 ) +
   geom_boxplot(alpha = 0.9, width = 0.9, outlier.shape = NA) +
-  facet_wrap(~mutation_level, scales = "free_y") +
+  facet_wrap(~mutation_level) +
   labs(x = "", y = "Number of Unique Mutations", fill = "") +
   egg::theme_article() +
   scale_fill_manual(values = c(
@@ -649,7 +663,6 @@ To identify mutations that occur more frequently than expected by chance (i.e., 
 ```{r recurrent_mutations_threshold, fig.cap="Rank frequency and empirical threshold for non-random mutations. Top panels are from amino acid mutation and bottom panels are from nucleotide mutations. The right panels show the rank frequency distribution of unique mutations. The left panels show the empirical probability under a binomial null model. The dashed vertical (p=0.05) and horizontal (minimum patient count exceeding P =0.05) lines indicate the significance cut-off."}
 library(patchwork)
 library(broom)
-library(logistf)
 
 # Function to generate rank-frequency and empirical threshold plots
 mutation_plots <- function(df, mut_col, label_y = "Number of hosts",
@@ -804,6 +817,8 @@ Four models were tested:
 3. SG + patient factors (immune status, CCI score)
 4. SG + antiviral treatment + patient factors
 
+Models were fit on `subset_patient_coded.csv` (100 genomes with patient-level outcomes). Each specification uses `glm` (binomial) or `lm` (infection length) for inference (Wald p-values, OR or β, 95% CIs) and `caret` 5-fold cross-validation (`glm`/`lm`) for AUC, Brier, or RMSE. Genotype–phenotype associations significant (p < 0.05) in at least one outcome are exported to `Table1_*.csv` (not printed in this document).
+
 ```{r AIC_BIC, fig.cap="Model comparison for clinical outcomes using ΔAIC and ΔBIC. Vertical faceted plots represent the outcome tested by each model. Patient factors include age, CCI, and immune status. Lines link mutation groups from model to model. The best-fitting model (lowest ΔAIC or ΔBIC) per-mutation is highlighted in green."}
 library(caret)
 library(pROC)
@@ -820,7 +835,7 @@ h <- aa_long_df %>%
   distinct(genbank, gene_mutation, .keep_all = TRUE) %>%
   mutate(present = 1L) %>%
   pivot_wider(
-    id_cols = c(genbank, id, immune_state, antivirals_binary, AgeGroup,
+    id_cols = c(genbank, id, immune_state, antivirals_binary, age_group,
                hospitalization, CCI_score, biological_therapy_binary,
                monoclonal_ab_binary, death, infection_length),
    names_from = gene_mutation,
@@ -829,7 +844,7 @@ h <- aa_long_df %>%
 
 h <- h %>% mutate(
    antivirals_binary = factor(antivirals_binary, levels = c("none", "treated")),
-   AgeGroup = factor(AgeGroup, 
+   AgeGroup = factor(age_group, 
    levels = c("30-39","60-69","70-79","80+","40-49","50-59")),
    immune_state = factor(immune_state, levels = c("Immunocompetent", 
       "Immunocompromised")),
@@ -869,6 +884,42 @@ cv_metrics_bin <- function(pred_df, positive = "Yes") {
    y_true <- ifelse(pred_df$obs == positive, 1, 0)
    list(Brier = mean((p_yes - y_true)^2),
    AUC   = roc(y_true, p_yes, quiet = TRUE)$auc[[1]])}
+
+# Mutation effect, p-value, and 95% CI from the same glm/lm fit used for AIC/BIC
+extract_mut_effect <- function(glm_fit, mut, is_binary) {
+  coefs <- summary(glm_fit)$coefficients
+  if (!(mut %in% rownames(coefs))) {
+    return(list(
+      p_mut = NA_real_,
+      effect_type = if (is_binary) "OR" else "beta",
+      effect_estimate = NA_real_,
+      effect_ci_lower = NA_real_,
+      effect_ci_upper = NA_real_
+    ))
+  }
+  mut_coef <- coefs[mut, "Estimate"]
+  mut_se   <- coefs[mut, "Std. Error"]
+  mut_ci_lower <- mut_coef - 1.96 * mut_se
+  mut_ci_upper <- mut_coef + 1.96 * mut_se
+  p_mut <- if (is_binary) coefs[mut, "Pr(>|z|)"] else coefs[mut, "Pr(>|t|)"]
+  if (is_binary) {
+    list(
+      p_mut = p_mut,
+      effect_type = "OR",
+      effect_estimate = exp(mut_coef),
+      effect_ci_lower = exp(mut_ci_lower),
+      effect_ci_upper = exp(mut_ci_upper)
+    )
+  } else {
+    list(
+      p_mut = p_mut,
+      effect_type = "beta",
+      effect_estimate = mut_coef,
+      effect_ci_lower = mut_ci_lower,
+      effect_ci_upper = mut_ci_upper
+    )
+  }
+}
 
 # Function to run models for a given outcome
 run_models <- function(outcome) {
@@ -930,10 +981,7 @@ run_models <- function(outcome) {
         rmse  <- caret_fit$results$RMSE
       }
       
-      coefs <- summary(glm_fit)$coefficients
-      p_mut <- if (mut %in% rownames(coefs)) {
-        if (is_binary) coefs[mut, "Pr(>|z|)"] else coefs[mut, "Pr(>|t|)"]
-      } else NA_real_
+      effect <- extract_mut_effect(glm_fit, mut, is_binary)
       
       res_list[[paste(outcome, mut, m, sep = "_")]] <-
         tibble(outcome  = outcome,
@@ -941,7 +989,11 @@ run_models <- function(outcome) {
                model = m,
                covars = if (length(covs) > 0) paste(covs, collapse = "+") else "",
                LRT_p = lrt_p, AIC = AIC(glm_fit), BIC = BIC(glm_fit),
-               AUC = auc, Brier = brier,RMSE = rmse, p_mut = p_mut)
+               AUC = auc, Brier = brier, RMSE = rmse, p_mut = effect$p_mut,
+               effect_type = effect$effect_type,
+               effect_estimate = effect$effect_estimate,
+               effect_ci_lower = effect$effect_ci_lower,
+               effect_ci_upper = effect$effect_ci_upper)
     }
   }
   bind_rows(res_list)
@@ -958,14 +1010,125 @@ all_results <- bind_rows(model_results) %>%
       bestBIC  = deltaBIC == 0) %>%
    ungroup()
 
-all_results %>%
-  filter(model == "M4") %>%
-  group_by(outcome) %>%
+# Table 1: quantitative associations from the same model results (all_results)
+model_lab <- c(M1 = "Mutation-only", M2 = "Treatment-adjusted",
+               M3 = "Patient-factor-adjusted", M4 = "Fully adjusted")
+outcome_lab <- c(death = "Mortality", hospitalization = "Hospitalization",
+                 infection_length = "Infection length")
+
+fmt_num <- function(x) {
+  ifelse(is.na(x), "\u2014",
+  ifelse(abs(x) >= 100, formatC(x, format = "f", digits = 0),
+  ifelse(abs(x) >= 10,  formatC(x, format = "f", digits = 1),
+                        formatC(x, format = "f", digits = 2))))
+}
+fmt_p <- function(p) ifelse(is.na(p), "\u2014",
+  ifelse(p < 0.001, "<0.001", formatC(p, format = "f", digits = 3)))
+
+key2orig <- setNames(aa_list, make.names(aa_list))
+grp_disp <- group_map %>%
+  mutate(orig    = lapply(mutations, function(x) unname(key2orig[x])),
+         members = vapply(orig, function(x) paste(sub("_", " ", x), collapse = "; "), character(1)),
+         genes   = vapply(orig, function(x) paste(sort(unique(sub("_.*", "", x))), collapse = ", "), character(1))) %>%
+  select(mut_grp = group_id, members, genes)
+
+sig_mut_grp <- all_results %>%
+  group_by(mut_grp) %>%
+  summarise(min_p_any = suppressWarnings(min(p_mut, na.rm = TRUE)), .groups = "drop") %>%
+  filter(is.finite(min_p_any) & min_p_any < 0.05)
+
+outcome_min_p <- all_results %>%
+  group_by(outcome, mut_grp) %>%
+  summarise(min_p_outcome = suppressWarnings(min(p_mut, na.rm = TRUE)), .groups = "drop")
+
+table1 <- all_results %>%
+  inner_join(sig_mut_grp %>% select(mut_grp), by = "mut_grp") %>%
+  left_join(outcome_min_p, by = c("outcome", "mut_grp")) %>%
+  left_join(grp_disp, by = "mut_grp") %>%
+  mutate(
+    Outcome      = outcome_lab[outcome],
+    Model        = factor(model_lab[model], levels = model_lab),
+    `Effect size` = if_else(effect_type == "OR",
+                            paste0("OR = ", fmt_num(effect_estimate)),
+                            paste0("\u03b2 = ", fmt_num(effect_estimate), " d")),
+    Direction = case_when(
+      is.na(effect_estimate)                       ~ "\u2014",
+      effect_type == "OR"   & effect_estimate > 1  ~ "higher",
+      effect_type == "OR"   & effect_estimate < 1  ~ "lower",
+      effect_type == "beta" & effect_estimate > 0  ~ "longer",
+      effect_type == "beta" & effect_estimate < 0  ~ "shorter",
+      TRUE                                         ~ "\u2014"),
+    `95% CI` = if_else(is.na(effect_ci_lower), "\u2014",
+                       paste0("[", fmt_num(effect_ci_lower), ", ", fmt_num(effect_ci_upper), "]")),
+    `p-value` = paste0(fmt_p(p_mut), if_else(!is.na(p_mut) & p_mut < 0.05, "*", "")),
+    outcome_order = match(outcome, names(outcome_lab))
+  ) %>%
+  arrange(outcome_order, min_p_outcome, mut_grp, Model)
+
+format_table1_outcome <- function(outcome_key) {
+  table1 %>%
+    filter(outcome == outcome_key) %>%
+    group_by(mut_grp) %>%
+    mutate(
+      `Gene(s)`            = if_else(row_number() == 1, genes, ""),
+      `Substitution group` = if_else(row_number() == 1, members, "")
+    ) %>%
+    ungroup() %>%
+    transmute(
+      `Gene(s)`            = `Gene(s)`,
+      `Substitution group` = `Substitution group`,
+      Model                = as.character(Model),
+      `Effect size`        = `Effect size`,
+      Direction            = Direction,
+      `95% CI`             = `95% CI`,
+      `p-value`            = `p-value`
+    )
+}
+
+table1_export <- table1 %>%
+  select(Outcome, `Gene(s)` = genes, `Substitution group` = members,
+         Model, `Effect size`, Direction, `95% CI`, `p-value`)
+write.csv(table1_export, "Table1_genotype_phenotype_associations.csv", row.names = FALSE)
+write.csv(format_table1_outcome("death"), "Table1_mortality.csv", row.names = FALSE)
+write.csv(format_table1_outcome("hospitalization"), "Table1_hospitalization.csv", row.names = FALSE)
+write.csv(format_table1_outcome("infection_length"), "Table1_infection_length.csv", row.names = FALSE)
+
+# Cohort outcome summary (genome-level), overall and by study
+fmt_inf_range <- function(x) {
+  avail <- x > 0 & !is.na(x)
+  if (!any(avail)) return("\u2014")
+  paste0(min(x[avail]), "\u2013", max(x[avail]))
+}
+
+h_cohort <- h %>%
+  left_join(filtered_df %>% distinct(genbank, study_id), by = "genbank") %>%
+  mutate(inf_available = infection_length > 0 & !is.na(infection_length))
+
+cohort_by_study <- h_cohort %>%
+  group_by(study_id) %>%
   summarise(
-    AUC   = mean(AUC,   na.rm = TRUE),
-    Brier = mean(Brier, na.rm = TRUE),
-    RMSE  = mean(RMSE,  na.rm = TRUE)
-  )
+    `N patients` = n_distinct(id),
+    `N genomes` = n(),
+    Mortality = sum(death == "Yes"),
+    Hospitalization = sum(hospitalization == "Yes"),
+    `Infection duration (data available)` = sum(inf_available),
+    `Range (days)` = fmt_inf_range(infection_length),
+    .groups = "drop"
+  ) %>%
+  rename(Study = study_id)
+
+cohort_total <- tibble(
+  Study = "Total (modeling cohort)",
+  `N patients` = n_distinct(h_cohort$id),
+  `N genomes` = nrow(h_cohort),
+  Mortality = sum(h_cohort$death == "Yes"),
+  Hospitalization = sum(h_cohort$hospitalization == "Yes"),
+  `Infection duration (data available)` = sum(h_cohort$inf_available),
+  `Range (days)` = fmt_inf_range(h_cohort$infection_length)
+)
+
+cohort_outcome_table <- bind_rows(cohort_by_study, cohort_total)
+write.csv(cohort_outcome_table, "Table_modeling_cohort_outcomes.csv", row.names = FALSE)
 
 p1 <- ggplot(all_results, aes(x = model, y = deltaAIC, group = mut_grp)) +
    geom_line(colour = "#324851", alpha = 0.2, linewidth = .3) +
