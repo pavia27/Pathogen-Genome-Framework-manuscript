@@ -320,6 +320,7 @@ A significant effort was made to clean, normalize, and consolidate data from all
 The cleaned dataset (`Supplementary_Data.csv`) is used for all subsequent analyses.
 
 ```{r make_core_data, echo=TRUE, eval=FALSE}
+#Chunck has already been run and saved the output as "Supplementary_Data.csv" for publication
 library(dplyr)
 library(lubridate)
 
@@ -341,6 +342,7 @@ metadata_list <- lapply(metadata_files, function(file_path) {
   )
   return(data)
 })
+
 
 # Combine all study metadata into a single data frame
 metadata_df <- do.call(rbind, metadata_list)
@@ -498,6 +500,7 @@ final_df <- full_join(nextclade_df, metadata_df, by = "genbank") %>%
 We investigated the rate of viral evolution within individual hosts. Using a time-dated phylogenetic tree (`treedater`), we estimated the substitution rate for each patient with longitudinal samples. The plot below shows these intra-host rates, highlighting differences between immune status and viral clade. A linear model was used to formally test the association between substitution rate, immune status, and clade.
 
 ```{r genbank_limit, fig.cap="Distribution of SARS-CoV-2 lineages by country used in case 2. Illustrates analytical limit of Genbank data."}
+
 
 selected_studies <- c(
   "Manuto_2024", 
@@ -920,8 +923,11 @@ run_models <- function(outcome) {
         cvm   <- cv_metrics_bin(caret_fit$pred)
         auc   <- cvm$AUC
         brier <- cvm$Brier
+        rmse  <- NA_real_
       } else {
-        auc <- brier <- NA_real_
+        auc   <- NA_real_
+        brier <- NA_real_
+        rmse  <- caret_fit$results$RMSE
       }
       
       coefs <- summary(glm_fit)$coefficients
@@ -935,7 +941,7 @@ run_models <- function(outcome) {
                model = m,
                covars = if (length(covs) > 0) paste(covs, collapse = "+") else "",
                LRT_p = lrt_p, AIC = AIC(glm_fit), BIC = BIC(glm_fit),
-               AUC = auc, Brier = brier, p_mut = p_mut)
+               AUC = auc, Brier = brier,RMSE = rmse, p_mut = p_mut)
     }
   }
   bind_rows(res_list)
@@ -951,6 +957,15 @@ all_results <- bind_rows(model_results) %>%
       deltaBIC = BIC - min(BIC, na.rm = TRUE), bestAIC  = deltaAIC == 0,
       bestBIC  = deltaBIC == 0) %>%
    ungroup()
+
+all_results %>%
+  filter(model == "M4") %>%
+  group_by(outcome) %>%
+  summarise(
+    AUC   = mean(AUC,   na.rm = TRUE),
+    Brier = mean(Brier, na.rm = TRUE),
+    RMSE  = mean(RMSE,  na.rm = TRUE)
+  )
 
 p1 <- ggplot(all_results, aes(x = model, y = deltaAIC, group = mut_grp)) +
    geom_line(colour = "#324851", alpha = 0.2, linewidth = .3) +
