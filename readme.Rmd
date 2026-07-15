@@ -1085,14 +1085,6 @@ format_table1_outcome <- function(outcome_key) {
     )
 }
 
-table1_export <- table1 %>%
-  select(Outcome, `Gene(s)` = genes, `Substitution group` = members,
-         Model, `Effect size`, Direction, `95% CI`, `p-value`)
-write.csv(table1_export, "Table1_genotype_phenotype_associations.csv", row.names = FALSE)
-write.csv(format_table1_outcome("death"), "Table1_mortality.csv", row.names = FALSE)
-write.csv(format_table1_outcome("hospitalization"), "Table1_hospitalization.csv", row.names = FALSE)
-write.csv(format_table1_outcome("infection_length"), "Table1_infection_length.csv", row.names = FALSE)
-
 # Cohort outcome summary (genome-level), overall and by study
 fmt_inf_range <- function(x) {
   avail <- x > 0 & !is.na(x)
@@ -1128,7 +1120,6 @@ cohort_total <- tibble(
 )
 
 cohort_outcome_table <- bind_rows(cohort_by_study, cohort_total)
-write.csv(cohort_outcome_table, "Table_modeling_cohort_outcomes.csv", row.names = FALSE)
 
 p1 <- ggplot(all_results, aes(x = model, y = deltaAIC, group = mut_grp)) +
    geom_line(colour = "#324851", alpha = 0.2, linewidth = .3) +
